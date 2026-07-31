@@ -9,7 +9,6 @@ import { createClient } from '@/lib/supabase/client';
 import { MOCK_PROJECTS, MOCK_PROJECT_FILES, FileItem } from '@/lib/data';
 import { DrawioOfficialViewer } from '@/components/renderers/DrawioOfficialViewer';
 import { PdfViewer } from '@/components/renderers/PdfViewer';
-import { ShareProjectModal } from '@/components/projects/ShareProjectModal';
 
 interface ProjectDetailsClientProps {
   decodedId: string;
@@ -19,7 +18,7 @@ interface QueuedFile {
   id: string;
   name: string;
   section: string;
-  rendererType: 'drawio' | 'excel' | 'pdf' | 'plantuml' | 'image' | 'markdown' | 'text';
+  rendererType: 'pdf' | 'excel' | 'drawio' | 'plantuml' | 'image' | 'markdown' | 'text' | 'code' | 'download';
   size: string;
   fileDataUrl?: string;
   source?: string;
@@ -112,7 +111,7 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
                 const cleanedRows = jsonRows.map((row) => {
                   if (!Array.isArray(row)) return [];
                   return row.slice(0, maxColIndex + 1);
-                }).filter(row => row.some(cell => cell !== undefined && cell !== null && String(cell).trim() !== ''));
+                }).filter((row: any) => row.some((cell: any) => cell !== undefined && cell !== null && String(cell).trim() !== ''));
 
                 parsedSheets[sheetName] = cleanedRows;
               } else {
@@ -392,16 +391,16 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
         if (activeFile.rendererType === 'drawio' || activeFile.rendererType === 'markdown' || activeFile.rendererType === 'text') {
           const text = await blob.text();
           if (isMounted) {
-            setActiveFile(prev => prev?.id === activeFile.id ? { ...prev, content: text, fileDataUrl: `data:text/plain;base64,loaded`, source: sourceText } : prev);
-            setFileList(prevList => prevList.map(f => f.id === activeFile.id ? { ...f, content: text, fileDataUrl: `data:text/plain;base64,loaded`, source: sourceText } : f));
+            setActiveFile((prev: any) => prev?.id === activeFile.id ? { ...prev, content: text, fileDataUrl: `data:text/plain;base64,loaded`, source: sourceText } : prev);
+            setFileList((prevList: any) => prevList.map((f: any) => f.id === activeFile.id ? { ...f, content: text, fileDataUrl: `data:text/plain;base64,loaded`, source: sourceText } : f));
           }
         } else {
           const reader = new FileReader();
           reader.onload = () => {
             if (isMounted && reader.result) {
               const dataUrl = reader.result as string;
-              setActiveFile(prev => prev?.id === activeFile.id ? { ...prev, fileDataUrl: dataUrl, source: sourceText } : prev);
-              setFileList(prevList => prevList.map(f => f.id === activeFile.id ? { ...f, fileDataUrl: dataUrl, source: sourceText } : f));
+              setActiveFile((prev: any) => prev?.id === activeFile.id ? { ...prev, fileDataUrl: dataUrl, source: sourceText } : prev);
+              setFileList((prevList: any) => prevList.map((f: any) => f.id === activeFile.id ? { ...f, fileDataUrl: dataUrl, source: sourceText } : f));
             }
           };
           reader.readAsDataURL(blob);
@@ -494,7 +493,7 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
 
   const handleDownloadAllZip = () => {
     if (fileList.length === 0) return;
-    fileList.forEach((file) => handleDownloadFile(file));
+    fileList.forEach((file: any) => handleDownloadFile(file));
   };
 
   const handleDeleteIndividualFile = async (fileId: string, fileName: string) => {
@@ -524,7 +523,7 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
         details: { asset_name: fileName }
       });
 
-      const updated = fileList.filter((f) => f.id !== fileId);
+      const updated = fileList.filter((f: any) => f.id !== fileId);
       setFileList(updated);
 
       if (activeFile?.id === fileId) {
@@ -575,7 +574,7 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
           if (!folder) continue;
           const { data: files } = await supabase.storage.from('assets').list(folder);
           if (files && files.length > 0) {
-            const filesToRemove = files.map((f) => `${folder}/${f.name}`);
+            const filesToRemove = files.map((f: any) => `${folder}/${f.name}`);
             await supabase.storage.from('assets').remove(filesToRemove);
           }
         }
@@ -660,7 +659,7 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
     const filesArray = Array.from(filesList);
     if (filesArray.length === 0) return;
 
-    filesArray.forEach((f, idx) => {
+    filesArray.forEach((f: any, idx: any) => {
       const fileName = f.name;
       const lowerName = fileName.toLowerCase();
       let detectedRenderer: QueuedFile['rendererType'] = 'text';
@@ -704,7 +703,7 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
           : `${Math.max(1, Math.round(f.size / 1024))} KB`;
 
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = (e: any) => {
         const dataUrl = e.target?.result as string;
         const newItem: QueuedFile = {
           id: `q-modal-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
@@ -714,7 +713,7 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
           size: formattedSize,
           fileDataUrl: dataUrl,
         };
-        setQueuedFiles((prev) => [...prev, newItem]);
+        setQueuedFiles((prev: any) => [...prev, newItem]);
       };
 
       reader.readAsDataURL(f);
@@ -746,7 +745,7 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
   };
 
   const handleRemoveModalQueuedFile = (id: string) => {
-    setQueuedFiles((prev) => prev.filter((f) => f.id !== id));
+    setQueuedFiles((prev: any) => prev.filter((f: any) => f.id !== id));
   };
 
   const handleUpdateModalQueuedFile = (
@@ -754,8 +753,8 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
     field: 'name' | 'section' | 'rendererType',
     value: string
   ) => {
-    setQueuedFiles((prev) =>
-      prev.map((f) => (f.id === id ? { ...f, [field]: value } : f))
+    setQueuedFiles((prev: any) =>
+      prev.map((f: any) => (f.id === id ? { ...f, [field]: value } : f))
     );
   };
 
@@ -766,7 +765,7 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
 
     try {
       const supabase = createClient();
-      const newAssets: FileItem[] = queuedFiles.map((f, idx) => ({
+      const newAssets: FileItem[] = queuedFiles.map((f: any, idx: any) => ({
         id: `f-${Date.now()}-${idx}`,
         name: f.name,
         folder: f.section,
@@ -784,7 +783,7 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
       // Upload binary files to Supabase Storage & insert metadata into public.assets
       if (project.id) {
         await Promise.all(
-          queuedFiles.map(async (f) => {
+          queuedFiles.map(async (f: any) => {
             if (f.fileDataUrl) {
               try {
                 const base64 = f.fileDataUrl.split(',')[1] || f.fileDataUrl;
@@ -810,7 +809,7 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
           })
         );
 
-        const assetsToInsert = queuedFiles.map((f, idx) => ({
+        const assetsToInsert = queuedFiles.map((f: any, idx: any) => ({
           project_id: project.id,
           name: f.name,
           folder: f.section,
@@ -828,7 +827,7 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
         const { data: insertedAssets, error: insertError } = await supabase.from('assets').insert(assetsToInsert).select();
         
         if (insertedAssets && insertedAssets.length > 0) {
-          const logsToInsert = insertedAssets.map(asset => ({
+          const logsToInsert = insertedAssets.map((asset: any) => ({
             project_id: project.id,
             asset_id: asset.id,
             user_name: project.engineer_name || 'Lead Engineer',
@@ -1057,9 +1056,9 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
                     <div className="ml-2 border-l border-[#c5c6ce] pl-1.5 flex flex-col gap-1 mt-1">
                       {fileList
                         .filter(
-                          (f) => f.section === 'Drawings' || f.folder === 'Drawings'
+                          (f: any) => f.section === 'Drawings' || f.folder === 'Drawings'
                         )
-                        .map((file) => (
+                        .map((file: any) => (
                           <div
                             key={file.id}
                             className={`flex items-center justify-between px-2 py-1.5 rounded text-xs group transition-colors ${
@@ -1122,11 +1121,11 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
                     <div className="ml-2 border-l border-[#c5c6ce] pl-1.5 flex flex-col gap-1 mt-1">
                       {fileList
                         .filter(
-                          (f) =>
+                          (f: any) =>
                             f.section === 'Specifications' ||
                             f.folder === 'Specifications'
                         )
-                        .map((file) => (
+                        .map((file: any) => (
                           <div
                             key={file.id}
                             className={`flex items-center justify-between px-2 py-1.5 rounded text-xs group transition-colors ${
@@ -1190,8 +1189,8 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
                     </div>
                     <div className="ml-2 border-l border-[#c5c6ce] pl-1.5 flex flex-col gap-1 mt-1">
                       {fileList
-                        .filter((f) => f.section === 'BOQ' || f.folder === 'BOQ')
-                        .map((file) => (
+                        .filter((f: any) => f.section === 'BOQ' || f.folder === 'BOQ')
+                        .map((file: any) => (
                           <div
                             key={file.id}
                             className={`flex items-center justify-between px-2 py-1.5 rounded text-xs group transition-colors ${
@@ -1367,7 +1366,7 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
                 {/* Clean Zoom Bar */}
                 <div className="flex items-center gap-1 bg-white border border-[#c5c6ce] rounded px-1 py-0.5 shrink-0 shadow-xs">
                   <button
-                    onClick={() => setZoomLevel((z) => Math.max(50, z - 25))}
+                    onClick={() => setZoomLevel((z: any) => Math.max(50, z - 25))}
                     className="p-0.5 hover:bg-[#eceef1] text-[#44474d] rounded transition-colors"
                     title="Zoom Out"
                   >
@@ -1377,7 +1376,7 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
                     {zoomLevel}%
                   </span>
                   <button
-                    onClick={() => setZoomLevel((z) => Math.min(200, z + 25))}
+                    onClick={() => setZoomLevel((z: any) => Math.min(200, z + 25))}
                     className="p-0.5 hover:bg-[#eceef1] text-[#44474d] rounded transition-colors"
                     title="Zoom In"
                   >
@@ -1571,10 +1570,9 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
                             /* Dynamic SheetJS Parsed Table for Uploaded XLSX Files */
                             <table className="w-full text-left border-collapse text-[11px]">
                               <tbody className="divide-y divide-[#c5c6ce] text-[#05162e]">
-                                {dynamicExcelData[activeExcelSheet].map((rowArr, rowIdx) => {
-                                  const rowStr = rowArr.join(' ').toUpperCase();
+                                {dynamicExcelData[activeExcelSheet].map((rowArr: any, rowIdx: any) => {
                                   const isHeader = rowIdx === 0 || rowArr.some((c: any) => String(c).toUpperCase() === 'DESCRIPTION' || String(c).toUpperCase() === 'MAKE' || String(c).toUpperCase() === 'SNO' || String(c).toUpperCase() === 'S/N');
-                                  const isSectionHeader = !isHeader && (rowArr.length === 1 || (rowArr.filter(c => String(c).trim() !== '').length === 1 && !rowArr[0]?.toString().match(/^\d+$/)));
+                                  const isSectionHeader = !isHeader && (rowArr.length === 1 || (rowArr.filter((c: any) => String(c).trim() !== '').length === 1 && !rowArr[0]?.toString().match(/^\d+$/)));
 
                                   if (isHeader) {
                                     return (
@@ -1598,7 +1596,7 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
                                     return (
                                       <tr key={rowIdx} className="bg-[#e2f0d9] font-bold text-[#05162e] border-y border-[#b5d5a7]">
                                         <td colSpan={rowArr.length} className="p-2 pl-3 tracking-wider text-[11px] uppercase">
-                                          {rowArr.find(c => String(c).trim() !== '')}
+                                          {rowArr.find((c: any) => String(c).trim() !== '')}
                                         </td>
                                       </tr>
                                     );
@@ -2348,7 +2346,7 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
               {rightPanelTab === 'activity' && (
                 <div className="flex flex-col gap-3">
                   {assetActivityLogs.length > 0 ? (
-                    assetActivityLogs.map(log => {
+                    assetActivityLogs.map((log: any) => {
                       const date = new Date(log.created_at);
                       const timeAgo = Math.floor((new Date().getTime() - date.getTime()) / 60000);
                       const displayTime = timeAgo < 60 ? `${timeAgo || 1} mins ago` : timeAgo < 1440 ? `${Math.floor(timeAgo / 60)} hours ago` : `${Math.floor(timeAgo / 1440)} days ago`;

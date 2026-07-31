@@ -10,8 +10,10 @@ interface QueuedFile {
   id: string;
   name: string;
   section: string;
-  rendererType: 'drawio' | 'excel' | 'pdf' | 'plantuml' | 'image' | 'markdown';
+  rendererType: 'pdf' | 'excel' | 'drawio' | 'plantuml' | 'image' | 'markdown' | 'text' | 'code' | 'download';
   size: string;
+  fileDataUrl?: string;
+  source?: string;
 }
 
 export function ProjectsCatalogClient() {
@@ -266,7 +268,7 @@ export function ProjectsCatalogClient() {
           if (!folder) continue;
           const { data: files } = await supabase.storage.from('assets').list(folder);
           if (files && files.length > 0) {
-            const filesToRemove = files.map((f) => `${folder}/${f.name}`);
+            const filesToRemove = files.map((f: any) => `${folder}/${f.name}`);
             await supabase.storage.from('assets').remove(filesToRemove);
           }
         }

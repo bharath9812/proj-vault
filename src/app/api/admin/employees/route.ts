@@ -18,7 +18,7 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const employees = users.map((u) => ({
+    const employees = users.map((u: any) => ({
       id: u.id,
       email: u.email,
       fullName: u.user_metadata?.full_name || u.email?.split('@')[0] || 'Employee',

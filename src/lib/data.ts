@@ -33,6 +33,8 @@ export interface FileItem {
   content?: string;
   fileDataUrl?: string;
   fileBlobUrl?: string;
+  source?: string;
+  mimeType?: string;
 }
 
 export const MOCK_CATEGORIES = [
