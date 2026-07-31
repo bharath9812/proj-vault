@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+@theme {
+  --color-surface: #f7f9fc;
+  --color-surface-dim: #d8dadd;
+  --color-surface-bright: #f7f9fc;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f2f4f7;
+  --color-surface-container: #eceef1;
+  --color-surface-container-high: #e6e8eb;
+  --color-surface-container-highest: #e0e3e6;
+  --color-on-surface: #191c1e;
+  --color-on-surface-variant: #44474d;
+  --color-inverse-surface: #2d3133;
+  --color-inverse-on-surface: #eff1f4;
+  --color-outline: #75777e;
+  --color-outline-variant: #c5c6ce;
+  --color-surface-tint: #4f5f7b;
+  --color-primary: #05162e;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #1b2b44;
+  --color-on-primary-container: #8392b0;
+  --color-inverse-primary: #b7c7e7;
+  --color-secondary: #4b5f7d;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #c6dbfe;
+  --color-on-secondary-container: #4c607e;
+  --color-tertiary: #001633;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #002a57;
+  --color-on-tertiary-container: #5292ed;
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+  --color-primary-fixed: #d6e3ff;
+  --color-primary-fixed-dim: #b7c7e7;
+  --color-on-primary-fixed: #0a1c34;
+  --color-on-primary-fixed-variant: #384762;
+  --color-secondary-fixed: #d4e3ff;
+  --color-secondary-fixed-dim: #b3c8ea;
+  --color-on-secondary-fixed: #041c36;
+  --color-on-secondary-fixed-variant: #344864;
+  --color-tertiary-fixed: #d6e3ff;
+  --color-tertiary-fixed-dim: #a8c8ff;
+  --color-on-tertiary-fixed: #001b3c;
+  --color-on-tertiary-fixed-variant: #00468a;
+  --color-background: #f7f9fc;
+  --color-on-background: #191c1e;
+  --color-surface-variant: #e0e3e6;
+
+  --spacing-sidebar-width: 260px;
+  --spacing-gutter: 16px;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-background);
+    color: var(--color-on-surface);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 20px;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+.icon-fill {
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c5c6ce;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #75777e;
+}
