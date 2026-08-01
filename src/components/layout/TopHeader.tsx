@@ -141,9 +141,9 @@ export function TopHeader({ breadcrumb, onSearch }: TopHeaderProps) {
               </span>
             </div>
           ) : (
-            <h2 className="text-base font-bold text-[#05162e] hidden md:block">
-              Nexus Engineering
-            </h2>
+            <span className="font-bold text-sm text-[#05162e]">
+              Velocis Engineering
+            </span>
           )}
 
           {/* Global Search Bar with Live RPC Autocomplete Dropdown */}

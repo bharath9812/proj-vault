@@ -33,7 +33,7 @@ export default function AdminPage() {
 
         const userRole = session.user.user_metadata?.role || session.user.app_metadata?.role;
         // Allow user if role is Admin or if email is an admin email
-        const isAdminUser = userRole?.toLowerCase() === 'admin' || session.user.email === 'admin@nexus.eng';
+        const isAdminUser = userRole?.toLowerCase() === 'admin' || session.user.email === 'admin@velocis.eng';
 
         if (!isAdminUser) {
           alert('Access Denied: You must be a System Administrator to access /admin.');

@@ -69,7 +69,7 @@ export default function ExecutiveDashboard() {
               Executive Overview
             </span>
             <h1 className="text-2xl font-bold text-[#05162e] mt-0.5">
-              Nexus Engineering Command Dashboard
+              Velocis Engineering Command Dashboard
             </h1>
           </div>
           <div className="flex items-center gap-3">

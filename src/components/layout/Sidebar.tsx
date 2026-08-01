@@ -74,9 +74,9 @@ export function Sidebar() {
             NE
           </div>
           <div className="overflow-hidden">
-            <h1 className="text-base font-bold text-[#05162e] truncate leading-tight">
-              Nexus Engineering
-            </h1>
+            <h2 className="text-sm font-bold text-[#05162e]">
+              Velocis Engineering
+            </h2>
             <p className="text-xs text-[#44474d] truncate">Enterprise Repository</p>
           </div>
         </div>

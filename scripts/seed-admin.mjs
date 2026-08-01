@@ -35,7 +35,7 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
   },
 });
 
-const adminEmail = process.argv[2] || 'admin@nexus.eng';
+const adminEmail = process.argv[2] || 'admin@velocis.eng';
 const adminPassword = process.argv[3] || 'Admin@123456';
 const adminName = process.argv[4] || 'System Administrator';
 

@@ -4,7 +4,7 @@ import './globals.css';
 import { AppShell } from '@/components/layout/AppShell';
 
 export const metadata: Metadata = {
-  title: 'Nexus Engineering - EKMS Enterprise Repository',
+  title: 'Velocis Engineering - EKMS Enterprise Repository',
   description:
     'Enterprise Engineering Knowledge Management System for technical project documentation, versioning, search, and CAD/BIM asset viewers.',
 };

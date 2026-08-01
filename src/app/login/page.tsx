@@ -59,7 +59,7 @@ export default function LoginPage() {
             <span className="material-symbols-outlined text-[28px]">token</span>
           </div>
           <h1 className="text-xl font-bold text-[#05162e]">
-            Nexus EKMS Enterprise
+            Velocis EKMS Enterprise
           </h1>
           <p className="text-xs text-[#44474d] mt-1">
             Engineering Knowledge Management System
