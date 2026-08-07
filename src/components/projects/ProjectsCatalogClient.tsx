@@ -124,6 +124,20 @@ export function ProjectsCatalogClient() {
     }
 
     loadProjects();
+
+    const handleProfileUpdate = () => {
+      loadProjects();
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('user_profile_updated', handleProfileUpdate);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('user_profile_updated', handleProfileUpdate);
+      }
+    };
   }, []);
 
   const addFilesToQueue = (filesList: FileList | File[]) => {

@@ -6,6 +6,10 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
+        hostname: '*.supabase.co',
+      },
+      {
+        protocol: 'https',
         hostname: 'lh3.googleusercontent.com',
       },
       {
@@ -14,11 +18,7 @@ const nextConfig = {
       },
     ],
   },
-  webpack: (config, { dev }) => {
-    if (dev) {
-      // Disable persistent file caching in dev mode to eliminate missing dynamic chunk errors (e.g. ./885.js)
-      config.cache = false;
-    }
+  webpack: (config) => {
     return config;
   },
 };

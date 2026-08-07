@@ -12,19 +12,35 @@ export function Sidebar() {
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth
-      ?.getSession()
-      ?.then((res: any) => {
-        setUser(res?.data?.session?.user ?? null);
-      })
-      ?.catch(() => {});
+
+    const fetchSession = () => {
+      supabase.auth
+        ?.getSession()
+        ?.then((res: any) => {
+          setUser(res?.data?.session?.user ?? null);
+        })
+        ?.catch(() => {});
+    };
+
+    fetchSession();
 
     const authListener = supabase.auth?.onAuthStateChange((_event: any, session: any) => {
       setUser(session?.user ?? null);
     });
 
+    const handleProfileUpdate = () => {
+      fetchSession();
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('user_profile_updated', handleProfileUpdate);
+    }
+
     return () => {
       authListener?.data?.subscription?.unsubscribe();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('user_profile_updated', handleProfileUpdate);
+      }
     };
   }, []);
 
@@ -145,19 +161,23 @@ export function Sidebar() {
 
         {/* User Card & Logout Button */}
         <div className="mt-2 pt-2 border-t border-[#e6e8eb] flex items-center justify-between px-2">
-          <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className="w-7 h-7 rounded-full bg-[#1b2b44] text-white flex items-center justify-center text-xs font-bold shrink-0">
+          <Link
+            href="/profile"
+            className="flex items-center gap-2.5 overflow-hidden flex-1 hover:bg-[#eceef1] p-1 -ml-1 rounded transition-colors group"
+            title="View & Edit Profile"
+          >
+            <div className="w-7 h-7 rounded-full bg-[#1b2b44] text-white flex items-center justify-center text-xs font-bold shrink-0 group-hover:bg-[#005FB7] transition-colors">
               {initials}
             </div>
             <div className="overflow-hidden">
-              <p className="text-xs font-semibold text-[#191c1e] truncate">
+              <p className="text-xs font-semibold text-[#191c1e] truncate group-hover:text-[#005FB7] transition-colors">
                 {user?.user_metadata?.full_name || 'Enterprise User'}
               </p>
-              <p className="text-[11px] text-[#44474d] truncate">
+              <p className="text-[11px] text-[#44474d] truncate font-mono">
                 {user?.email || 'authenticated'}
               </p>
             </div>
-          </div>
+          </Link>
 
           <button
             onClick={handleSignOut}

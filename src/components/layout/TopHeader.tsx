@@ -24,21 +24,35 @@ export function TopHeader({ breadcrumb, onSearch }: TopHeaderProps) {
   useEffect(() => {
     const supabase = createClient();
 
-    // Check active session safely
-    supabase.auth
-      ?.getSession()
-      ?.then((res: any) => {
-        setUser(res?.data?.session?.user ?? null);
-      })
-      ?.catch(() => {});
+    const fetchSession = () => {
+      supabase.auth
+        ?.getSession()
+        ?.then((res: any) => {
+          setUser(res?.data?.session?.user ?? null);
+        })
+        ?.catch(() => {});
+    };
+
+    fetchSession();
 
     // Listen for auth state changes safely
     const authListener = supabase.auth?.onAuthStateChange((_event: any, session: any) => {
       setUser(session?.user ?? null);
     });
 
+    const handleProfileUpdate = () => {
+      fetchSession();
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('user_profile_updated', handleProfileUpdate);
+    }
+
     return () => {
       authListener?.data?.subscription?.unsubscribe();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('user_profile_updated', handleProfileUpdate);
+      }
     };
   }, []);
 
@@ -277,10 +291,21 @@ export function TopHeader({ breadcrumb, onSearch }: TopHeaderProps) {
                   <p className="text-xs font-bold text-[#05162e] truncate">
                     {user?.user_metadata?.full_name || 'Enterprise User'}
                   </p>
-                  <p className="text-[11px] text-[#75777e] truncate">
+                  <p className="text-[11px] text-[#75777e] truncate font-mono">
                     {user?.email || 'authenticated'}
                   </p>
                 </div>
+
+                <Link
+                  href="/profile"
+                  className="w-full text-left px-3 py-2 text-xs text-[#191c1e] hover:bg-[#f2f4f7] flex items-center gap-2"
+                  onClick={() => setUserDropdownOpen(false)}
+                >
+                  <span className="material-symbols-outlined text-[16px] text-[#005FB7]">
+                    person
+                  </span>
+                  <span>My Profile & Settings</span>
+                </Link>
 
                 <Link
                   href="/admin"

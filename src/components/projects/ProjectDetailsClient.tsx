@@ -441,8 +441,36 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
     };
     
     fetchAssetMeta();
-    return () => { isMounted = false; };
-  }, [activeFile, project]);
+
+    const handleProfileUpdate = async () => {
+      fetchAssetMeta();
+      if (project?.id) {
+        try {
+          const supabase = createClient();
+          const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+          const { data: projData } = await supabase
+            .from('projects')
+            .select('*')
+            .or(isUuid(project.id) ? `project_code.eq.${project.id},id.eq.${project.id}` : `project_code.eq.${project.id}`)
+            .single();
+          if (projData && isMounted) {
+            setProject(projData);
+          }
+        } catch (e) {}
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('user_profile_updated', handleProfileUpdate);
+    }
+
+    return () => {
+      isMounted = false;
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('user_profile_updated', handleProfileUpdate);
+      }
+    };
+  }, [activeFile, project?.id]);
 
 
   const handleSaveProjectInfo = async () => {

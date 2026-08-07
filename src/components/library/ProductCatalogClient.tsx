@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Brand, ProductCategory, ProductFamily, Product } from '@/types/catalog';
 import { ProductDetailsModal } from './ProductDetailsModal';
 import { AddProductModal } from './AddProductModal';
+import { ManageTaxonomyModal } from './ManageTaxonomyModal';
 import { TopHeader } from '@/components/layout/TopHeader';
 
 export function ProductCatalogClient() {
@@ -13,6 +14,9 @@ export function ProductCatalogClient() {
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [families, setFamilies] = useState<ProductFamily[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [customTaxonomyOptions, setCustomTaxonomyOptions] = useState<
+    { id: string; type: string; value: string }[]
+  >([]);
 
   // Filters State
   const [selectedBrandSlug, setSelectedBrandSlug] = useState<string>('all');
@@ -25,6 +29,7 @@ export function ProductCatalogClient() {
   // Modals
   const [selectedProductForModal, setSelectedProductForModal] = useState<Product | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
+  const [isManageTaxonomyOpen, setIsManageTaxonomyOpen] = useState<boolean>(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -38,7 +43,7 @@ export function ProductCatalogClient() {
     try {
       const supabase = createClient();
 
-      const [brandsRes, catRes, famRes, prodRes] = await Promise.all([
+      const [brandsRes, catRes, famRes, prodRes, customOptRes] = await Promise.all([
         supabase.from('brands').select('*').order('sort_order', { ascending: true }),
         supabase.from('product_categories').select('*').order('sort_order', { ascending: true }),
         supabase.from('product_families').select('*').order('sort_order', { ascending: true }),
@@ -52,12 +57,14 @@ export function ProductCatalogClient() {
             media:product_media(*)
           `)
           .order('sort_order', { ascending: true }),
+        supabase.from('custom_taxonomy_options').select('*').order('created_at', { ascending: true }),
       ]);
 
       if (brandsRes.data) setBrands(brandsRes.data);
       if (catRes.data) setCategories(catRes.data);
       if (famRes.data) setFamilies(famRes.data);
       if (prodRes.data) setProducts(prodRes.data);
+      if (customOptRes.data) setCustomTaxonomyOptions(customOptRes.data);
     } catch (err) {
       console.error('Error loading hardware catalog data:', err);
     } finally {
@@ -107,12 +114,28 @@ export function ProductCatalogClient() {
       if (selectedProductForModal?.id === id) {
         setSelectedProductForModal(null);
       }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('product_catalog_updated'));
+      }
       loadData();
     } catch (err: any) {
       console.error('Delete error:', err);
       alert('Failed to delete product: ' + err.message);
     }
   };
+
+  // Dynamic room size & seating capacity options merged from products & custom_taxonomy_options
+  const allCapacityAndRoomSizeOptions = React.useMemo(() => {
+    const set = new Set<string>();
+    (products || []).forEach((p) => {
+      if (p.seating_capacity && p.seating_capacity.trim()) set.add(p.seating_capacity.trim());
+      if (p.room_size && p.room_size.trim()) set.add(p.room_size.trim());
+    });
+    (customTaxonomyOptions || []).forEach((opt) => {
+      if (opt.value && opt.value.trim()) set.add(opt.value.trim());
+    });
+    return Array.from(set);
+  }, [products, customTaxonomyOptions]);
 
   // Filter logic
   const filteredProducts = products.filter((p) => {
@@ -131,11 +154,12 @@ export function ProductCatalogClient() {
       if (p.family?.slug !== selectedFamilySlug) return false;
     }
 
-    // Capacity filter
+    // Capacity / Room Size filter
     if (selectedCapacity !== 'all') {
-      if (!p.seating_capacity?.toLowerCase().includes(selectedCapacity.toLowerCase())) {
-        return false;
-      }
+      const q = selectedCapacity.toLowerCase();
+      const matchSeat = p.seating_capacity?.toLowerCase().includes(q);
+      const matchRoom = p.room_size?.toLowerCase().includes(q);
+      if (!matchSeat && !matchRoom) return false;
     }
 
     // Search query
@@ -243,16 +267,27 @@ export function ProductCatalogClient() {
               </button>
             </div>
 
-            <button
-              onClick={() => {
-                setEditingProduct(null);
-                setIsAddModalOpen(true);
-              }}
-              className="px-4 py-2 bg-[#005FB7] hover:bg-[#05162e] text-white rounded text-xs font-bold transition-colors flex items-center gap-2 shadow-sm"
-            >
-              <span className="material-symbols-outlined text-[18px]">add</span>
-              Add Product
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsManageTaxonomyOpen(true)}
+                className="px-3.5 py-2 bg-white border border-[#c5c6ce] hover:border-[#005FB7] text-[#05162e] rounded text-xs font-bold transition-colors flex items-center gap-1.5 shadow-2xs"
+                title="Edit or delete brands, categories, families, and sizing parameters"
+              >
+                <span className="material-symbols-outlined text-[18px] text-[#005FB7]">tune</span>
+                <span>Manage Taxonomy</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setEditingProduct(null);
+                  setIsAddModalOpen(true);
+                }}
+                className="px-4 py-2 bg-[#005FB7] hover:bg-[#05162e] text-white rounded text-xs font-bold transition-colors flex items-center gap-2 shadow-sm"
+              >
+                <span className="material-symbols-outlined text-[18px]">add</span>
+                <span>Add Product</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -403,12 +438,12 @@ export function ProductCatalogClient() {
                     : 'bg-[#f7f9fc] text-[#05162e] border-[#c5c6ce] hover:border-[#005FB7] hover:bg-white'
                 }`}
               >
-                <option value="all">All Room Sizes & Capacities</option>
-                <option value="2–4">2–4 People (Huddle Spaces)</option>
-                <option value="4–8">4–8 People (Small Rooms)</option>
-                <option value="8–10">8–10 People (Small to Medium)</option>
-                <option value="10–16">10–16 People (Medium to Large)</option>
-                <option value="16+">16+ People (Large / Boardrooms)</option>
+                <option value="all">All Room Sizes & Capacities ({allCapacityAndRoomSizeOptions.length})</option>
+                {allCapacityAndRoomSizeOptions.map((cap) => (
+                  <option key={cap} value={cap}>
+                    {cap}
+                  </option>
+                ))}
               </select>
               <span className="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-[18px] text-[#75777e] group-hover:text-[#005FB7] pointer-events-none transition-colors">
                 unfold_more
@@ -877,6 +912,20 @@ export function ProductCatalogClient() {
           brands={brands}
           categories={categories}
           families={families}
+          products={products}
+          customTaxonomyOptions={customTaxonomyOptions}
+        />
+
+        {/* Taxonomy & Dropdown Manager Modal */}
+        <ManageTaxonomyModal
+          isOpen={isManageTaxonomyOpen}
+          onClose={() => setIsManageTaxonomyOpen(false)}
+          onRefresh={loadData}
+          brands={brands}
+          categories={categories}
+          families={families}
+          products={products}
+          customTaxonomyOptions={customTaxonomyOptions}
         />
       </main>
     </div>
