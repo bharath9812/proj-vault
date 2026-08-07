@@ -43,7 +43,7 @@ export function Sidebar() {
   const navItems = [
     { label: 'Dashboard', href: '/', icon: 'dashboard' },
     { label: 'Projects', href: '/projects', icon: 'folder_open' },
-    { label: 'Engineering Library', href: '/library', icon: 'menu_book', underDev: true },
+    { label: 'Engineering Library', href: '/library', icon: 'menu_book' },
     { label: 'Categories', href: '/categories', icon: 'category', underDev: true },
     { label: 'Templates', href: '/templates', icon: 'description', underDev: true },
     { label: 'Admin', href: '/admin', icon: 'admin_panel_settings' },
@@ -63,7 +63,7 @@ export function Sidebar() {
         .slice(0, 2)
     : user?.email
     ? user.email.slice(0, 2).toUpperCase()
-    : 'JS';
+    : 'VE';
 
   return (
     <aside className="fixed h-full w-[260px] left-0 top-0 bg-[#f7f9fc] border-r border-[#c5c6ce] flex flex-col z-50 select-none">
@@ -71,7 +71,7 @@ export function Sidebar() {
       <div className="p-4 border-b border-[#c5c6ce] flex flex-col gap-2">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded bg-[#05162e] flex items-center justify-center text-white font-bold text-xs shrink-0">
-            NE
+            VE
           </div>
           <div className="overflow-hidden">
             <h2 className="text-sm font-bold text-[#05162e]">
