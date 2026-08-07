@@ -1066,6 +1066,15 @@ export function AddProductModal({
 
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('product_catalog_updated'));
+        if ('BroadcastChannel' in window) {
+          try {
+            const bc = new BroadcastChannel('ekms_library_sync_channel');
+            bc.postMessage({ type: 'CATALOG_MUTATION' });
+            bc.close();
+          } catch {
+            // Ignore
+          }
+        }
       }
 
       onSuccess();

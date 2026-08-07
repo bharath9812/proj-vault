@@ -9,6 +9,13 @@ import { createClient } from '@/lib/supabase/client';
 import { MOCK_PROJECTS, MOCK_PROJECT_FILES, FileItem } from '@/lib/data';
 import { DrawioOfficialViewer } from '@/components/renderers/DrawioOfficialViewer';
 import { PdfViewer } from '@/components/renderers/PdfViewer';
+import {
+  fetchAssetWith3TierCache,
+  invalidateAssetCache,
+  purgeAllAssetCaches,
+  saveToL1,
+  saveToL2,
+} from '@/lib/cache/asset-cache-engine';
 
 interface ProjectDetailsClientProps {
   decodedId: string;
@@ -22,6 +29,8 @@ interface QueuedFile {
   size: string;
   fileDataUrl?: string;
   source?: string;
+  latencyMs?: number;
+  cacheTier?: 'L1' | 'L2' | 'L3';
 }
 
 export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
@@ -359,11 +368,13 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
     URL.revokeObjectURL(url);
   };
 
-  // FETCH ASSET FROM STORAGE ON DEMAND
+  // FETCH ASSET VIA ENTERPRISE 3-TIER MULTI-LEVEL CACHE ENGINE
   useEffect(() => {
-    // If we already have the data locally or if it's the placeholder (starts with 'f-'), skip fetch.
-    if (!activeFile || activeFile.fileDataUrl || !project) return;
+    if (!activeFile || !project) return;
     if (activeFile.id.startsWith('f-') && activeFile.updatedAt === '2h ago') return;
+    
+    // If already fully loaded with measured source and latency, avoid duplicate fetch
+    if (activeFile.fileDataUrl && activeFile.source && activeFile.latencyMs !== undefined) return;
     
     let isMounted = true;
     
@@ -375,35 +386,43 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
         
         const { data: { publicUrl } } = supabase.storage.from('assets').getPublicUrl(storagePath);
         
-        const res = await fetch(publicUrl, { cache: 'force-cache' });
-        if (!res.ok) throw new Error('Failed to fetch from CDN');
-        
-        const cfCacheHeader = res.headers.get('cf-cache-status') || res.headers.get('x-cache');
-        let sourceText = 'Cloud Storage CDN';
-        if (cfCacheHeader === 'HIT') {
-          sourceText = 'Cloud CDN (Cache Hit)';
-        } else if (res.redirected || res.status === 200) {
-          sourceText = 'Supabase Direct Storage';
-        }
-        
-        const blob = await res.blob();
-        
-        if (activeFile.rendererType === 'drawio' || activeFile.rendererType === 'markdown' || activeFile.rendererType === 'text') {
-          const text = await blob.text();
-          if (isMounted) {
-            setActiveFile((prev: any) => prev?.id === activeFile.id ? { ...prev, content: text, fileDataUrl: `data:text/plain;base64,loaded`, source: sourceText } : prev);
-            setFileList((prevList: any) => prevList.map((f: any) => f.id === activeFile.id ? { ...f, content: text, fileDataUrl: `data:text/plain;base64,loaded`, source: sourceText } : f));
-          }
-        } else {
-          const reader = new FileReader();
-          reader.onload = () => {
-            if (isMounted && reader.result) {
-              const dataUrl = reader.result as string;
-              setActiveFile((prev: any) => prev?.id === activeFile.id ? { ...prev, fileDataUrl: dataUrl, source: sourceText } : prev);
-              setFileList((prevList: any) => prevList.map((f: any) => f.id === activeFile.id ? { ...f, fileDataUrl: dataUrl, source: sourceText } : f));
-            }
-          };
-          reader.readAsDataURL(blob);
+        // Lookup Tier 1 (L1 RAM) -> Tier 2 (L2 CacheStorage) -> Tier 3 (Cloud CDN / Supabase Storage)
+        const result = await fetchAssetWith3TierCache({
+          projectId: project.project_code || project.id,
+          fileName: activeFile.name,
+          version: activeFile.version || 'v1.0',
+          storagePublicUrl: publicUrl,
+          rendererType: activeFile.rendererType,
+          fallbackContent: activeFile.content,
+        });
+
+        if (isMounted) {
+          setActiveFile((prev: any) =>
+            prev?.id === activeFile.id
+              ? {
+                  ...prev,
+                  content: result.text || prev?.content,
+                  fileDataUrl: result.dataUrl,
+                  source: result.source,
+                  latencyMs: result.latencyMs,
+                  cacheTier: result.tier,
+                }
+              : prev
+          );
+          setFileList((prevList: any) =>
+            prevList.map((f: any) =>
+              f.id === activeFile.id
+                ? {
+                    ...f,
+                    content: result.text || f.content,
+                    fileDataUrl: result.dataUrl,
+                    source: result.source,
+                    latencyMs: result.latencyMs,
+                    cacheTier: result.tier,
+                  }
+                : f
+            )
+          );
         }
       } catch (err) {
         console.error('Failed to download asset from storage:', err);
@@ -413,7 +432,7 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
     fetchStorageAsset();
     
     return () => { isMounted = false; };
-  }, [activeFile, project]);
+  }, [activeFile?.id, project?.id]);
 
   // FETCH COMMENTS AND ACTIVITY LOGS
   useEffect(() => {
@@ -1377,17 +1396,33 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
                   <span className="text-[10px] font-mono font-bold text-[#005FB7] bg-[#d6e3ff] px-1.5 py-0.5 rounded shrink-0">
                     {activeFile.version}
                   </span>
-                  <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded shrink-0 flex items-center gap-1 border shadow-2xs ${
-                    activeFile.source?.includes('Cache')
-                      ? 'bg-[#e2f0d9] text-[#1e4620] border-[#b5d5a7]'
-                      : activeFile.source?.includes('Storage') || activeFile.source?.includes('Supabase')
-                      ? 'bg-[#d6e3ff] text-[#001b3c] border-[#9ec2ff]'
-                      : 'bg-[#fff0c2] text-[#593d00] border-[#ffe082]'
-                  }`}>
+                  <span
+                    className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded shrink-0 flex items-center gap-1 border shadow-2xs transition-colors ${
+                      activeFile.cacheTier === 'L1' || activeFile.source?.includes('L1') || activeFile.source?.includes('RAM') || activeFile.source?.includes('Memory')
+                        ? 'bg-[#e2f0d9] text-[#1e4620] border-[#b5d5a7]'
+                        : activeFile.cacheTier === 'L2' || activeFile.source?.includes('L2') || activeFile.source?.includes('CacheStorage') || activeFile.source?.includes('Browser')
+                        ? 'bg-[#d0f0fd] text-[#004a6b] border-[#92daf7]'
+                        : activeFile.source?.includes('CDN') || activeFile.source?.includes('Hit')
+                        ? 'bg-[#e8def8] text-[#4a2574] border-[#d0bcff]'
+                        : 'bg-[#d6e3ff] text-[#001b3c] border-[#9ec2ff]'
+                    }`}
+                    title={`3-Tier Cache Engine:\n• Tier: ${activeFile.cacheTier || (activeFile.source?.includes('RAM') ? 'L1' : activeFile.source?.includes('Cache') ? 'L2' : 'L3')}\n• Source: ${activeFile.source || 'Supabase Direct Storage'}\n• Latency: ${activeFile.latencyMs !== undefined ? `${activeFile.latencyMs} ms` : 'N/A'}`}
+                  >
                     <span className="material-symbols-outlined text-[13px]">
-                      {activeFile.source?.includes('Cache') ? 'bolt' : activeFile.source?.includes('Storage') ? 'cloud_download' : 'memory'}
+                      {activeFile.cacheTier === 'L1' || activeFile.source?.includes('RAM') || activeFile.source?.includes('Memory')
+                        ? 'bolt'
+                        : activeFile.cacheTier === 'L2' || activeFile.source?.includes('Cache') || activeFile.source?.includes('Browser')
+                        ? 'save'
+                        : activeFile.source?.includes('CDN')
+                        ? 'cloud_done'
+                        : 'cloud_download'}
                     </span>
-                    <span>Source: {activeFile.source || 'Supabase Direct Storage'}</span>
+                    <span>
+                      Source: {activeFile.source || 'Supabase Direct Storage'}
+                      {activeFile.latencyMs !== undefined && (
+                        <span className="ml-1 opacity-90 font-semibold">• {activeFile.latencyMs} ms</span>
+                      )}
+                    </span>
                   </span>
                 </div>
 

@@ -152,6 +152,8 @@ export function ProductDetailsModal({
                 <img
                   src={currentMedia.url}
                   alt={currentMedia.title}
+                  loading="lazy"
+                  decoding="async"
                   className="w-full h-full object-contain group-hover:scale-102 transition-transform duration-300"
                 />
               ) : (
@@ -201,7 +203,7 @@ export function ProductDetailsModal({
                     }`}
                   >
                     {m.type === 'image' ? (
-                      <img src={m.url} alt={m.title} className="w-full h-full object-contain" />
+                      <img src={m.url} alt={m.title} loading="lazy" decoding="async" className="w-full h-full object-contain" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-[#eceef1]">
                         <span className="material-symbols-outlined text-[20px] text-[#005FB7]">

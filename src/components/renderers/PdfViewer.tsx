@@ -29,30 +29,54 @@ export function PdfViewer({ fileName, fileDataUrl, onDownload }: PdfViewerProps)
 
   // ── Determine PDF Source URL ──────────────────────────────────────────
   useEffect(() => {
+    // If fileDataUrl is provided (e.g. data URI or Supabase Storage URL)
     if (fileDataUrl) {
-      // Uploaded file — use data URL directly
       setPdfSrc(fileDataUrl);
+      setError('');
       setLoading(false);
       return;
     }
 
-    // Hardcoded project file — build API URL and verify it exists
+    setLoading(true);
+    setError('');
+
+    let isCancelled = false;
+    let timerId: NodeJS.Timeout;
+
+    // Hardcoded project file fallback — check if /api/pdf route has the file
     const apiUrl = `/api/pdf?file=${encodeURIComponent(fileName)}`;
 
     fetch(apiUrl, { method: 'HEAD' })
       .then((res) => {
+        if (isCancelled) return;
         if (res.ok) {
           setPdfSrc(apiUrl);
+          setError('');
+          setLoading(false);
         } else {
-          setError(`PDF not found: ${fileName}`);
+          // If local /api/pdf 404s, wait for async CDN storage download before declaring error
+          timerId = setTimeout(() => {
+            if (!isCancelled && !fileDataUrl) {
+              setError(`PDF not found: ${fileName}`);
+              setLoading(false);
+            }
+          }, 3500);
         }
-        setLoading(false);
       })
       .catch(() => {
-        // HEAD might not be supported, just try the URL anyway
-        setPdfSrc(apiUrl);
-        setLoading(false);
+        if (isCancelled) return;
+        timerId = setTimeout(() => {
+          if (!isCancelled && !fileDataUrl) {
+            setError(`PDF not found: ${fileName}`);
+            setLoading(false);
+          }
+        }, 3500);
       });
+
+    return () => {
+      isCancelled = true;
+      if (timerId) clearTimeout(timerId);
+    };
   }, [fileName, fileDataUrl]);
 
   return (

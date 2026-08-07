@@ -34,6 +34,8 @@ export interface FileItem {
   fileDataUrl?: string;
   fileBlobUrl?: string;
   source?: string;
+  latencyMs?: number;
+  cacheTier?: 'L1' | 'L2' | 'L3';
   mimeType?: string;
 }
 

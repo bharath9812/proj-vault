@@ -41,6 +41,22 @@ export function ManageTaxonomyModal({
   const [editingFamId, setEditingFamId] = useState<string | null>(null);
   const [editFamName, setEditFamName] = useState('');
 
+  const triggerRefresh = () => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('product_catalog_updated'));
+      if ('BroadcastChannel' in window) {
+        try {
+          const bc = new BroadcastChannel('ekms_library_sync_channel');
+          bc.postMessage({ type: 'CATALOG_MUTATION' });
+          bc.close();
+        } catch {
+          // Ignore
+        }
+      }
+    }
+    onRefresh();
+  };
+
   const handleDeleteCustomOption = async (optValue: string) => {
     if (!confirm(`Are you sure you want to delete custom option "${optValue}" from database taxonomy?`)) return;
     setLoading(true);
@@ -48,7 +64,7 @@ export function ManageTaxonomyModal({
       const supabase = createClient();
       await supabase.from('custom_taxonomy_options').delete().eq('value', optValue);
       setStatusMsg(`Custom option "${optValue}" deleted successfully.`);
-      onRefresh();
+      triggerRefresh();
     } catch (err: any) {
       alert(err.message || 'Failed to delete custom option.');
     } finally {
@@ -75,7 +91,7 @@ export function ManageTaxonomyModal({
       if (error) throw error;
       setStatusMsg(`Brand "${editBrandName}" updated.`);
       setEditingBrandId(null);
-      onRefresh();
+      triggerRefresh();
     } catch (err: any) {
       alert(err.message || 'Failed to update brand.');
     } finally {
@@ -103,7 +119,7 @@ export function ManageTaxonomyModal({
       if (error) throw error;
 
       setStatusMsg(`Brand "${brand.name}" deleted successfully.`);
-      onRefresh();
+      triggerRefresh();
     } catch (err: any) {
       alert(err.message || 'Failed to delete brand.');
     } finally {
@@ -128,7 +144,7 @@ export function ManageTaxonomyModal({
       if (error) throw error;
       setStatusMsg(`Category "${editCatName}" updated.`);
       setEditingCatId(null);
-      onRefresh();
+      triggerRefresh();
     } catch (err: any) {
       alert(err.message || 'Failed to update category.');
     } finally {
@@ -155,7 +171,7 @@ export function ManageTaxonomyModal({
       if (error) throw error;
 
       setStatusMsg(`Category "${cat.name}" deleted successfully.`);
-      onRefresh();
+      triggerRefresh();
     } catch (err: any) {
       alert(err.message || 'Failed to delete category.');
     } finally {
@@ -180,7 +196,7 @@ export function ManageTaxonomyModal({
       if (error) throw error;
       setStatusMsg(`Family "${editFamName}" updated.`);
       setEditingFamId(null);
-      onRefresh();
+      triggerRefresh();
     } catch (err: any) {
       alert(err.message || 'Failed to update family.');
     } finally {
@@ -204,7 +220,7 @@ export function ManageTaxonomyModal({
       if (error) throw error;
 
       setStatusMsg(`Family "${fam.name}" deleted successfully.`);
-      onRefresh();
+      triggerRefresh();
     } catch (err: any) {
       alert(err.message || 'Failed to delete family.');
     } finally {
