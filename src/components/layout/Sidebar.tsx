@@ -21,7 +21,7 @@ export function Sidebar() {
         ?.then((res: any) => {
           setUser(res?.data?.session?.user ?? null);
         })
-        ?.catch(() => {});
+        ?.catch(() => { });
     };
 
     fetchSession();
@@ -74,23 +74,22 @@ export function Sidebar() {
 
   const initials = user?.user_metadata?.full_name
     ? user.user_metadata.full_name
-        .split(' ')
-        .map((n: string) => n[0])
-        .join('')
-        .toUpperCase()
-        .slice(0, 2)
+      .split(' ')
+      .map((n: string) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2)
     : user?.email
-    ? user.email.slice(0, 2).toUpperCase()
-    : 'VE';
+      ? user.email.slice(0, 2).toUpperCase()
+      : 'VE';
 
   const userName = user?.user_metadata?.full_name || 'Enterprise User';
   const userEmail = user?.email || 'authenticated';
 
   return (
     <aside
-      className={`fixed h-full left-0 top-0 bg-[#f7f9fc] border-r border-[#c5c6ce] flex flex-col z-50 select-none overflow-x-hidden transition-all duration-300 ease-in-out ${
-        isCollapsed ? 'w-[64px]' : 'w-[260px]'
-      }`}
+      className={`fixed h-full left-0 top-0 bg-[#f7f9fc] border-r border-[#c5c6ce] flex flex-col z-50 select-none overflow-x-hidden transition-all duration-300 ease-in-out ${isCollapsed ? 'w-[64px]' : 'w-[260px]'
+        }`}
     >
       {/* Brand Header */}
       <div className="p-3 border-b border-[#c5c6ce] flex flex-col gap-2.5 overflow-x-hidden">
@@ -170,16 +169,14 @@ export function Sidebar() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`relative group flex items-center justify-center py-2.5 transition-colors border-l-2 ${
-                  isActive
+                className={`relative group flex items-center justify-center py-2.5 transition-colors border-l-2 ${isActive
                     ? 'text-[#05162e] border-[#005FB7] bg-[#e6e8eb]'
                     : 'text-[#44474d] border-transparent hover:bg-[#eceef1] hover:text-[#05162e]'
-                }`}
+                  }`}
               >
                 <span
-                  className={`material-symbols-outlined text-[20px] ${
-                    isActive ? 'icon-fill text-[#005FB7]' : ''
-                  }`}
+                  className={`material-symbols-outlined text-[20px] ${isActive ? 'icon-fill text-[#005FB7]' : ''
+                    }`}
                 >
                   {item.icon}
                 </span>
@@ -205,17 +202,15 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center justify-between px-4 py-2.5 text-xs font-semibold transition-colors border-l-2 ${
-                isActive
+              className={`flex items-center justify-between px-4 py-2.5 text-xs font-semibold transition-colors border-l-2 ${isActive
                   ? 'text-[#05162e] border-[#005FB7] bg-[#e6e8eb]'
                   : 'text-[#44474d] border-transparent hover:bg-[#eceef1] hover:text-[#05162e]'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-3">
                 <span
-                  className={`material-symbols-outlined text-[20px] ${
-                    isActive ? 'icon-fill text-[#005FB7]' : ''
-                  }`}
+                  className={`material-symbols-outlined text-[20px] ${isActive ? 'icon-fill text-[#005FB7]' : ''
+                    }`}
                 >
                   {item.icon}
                 </span>
@@ -300,9 +295,6 @@ export function Sidebar() {
               <div className="overflow-hidden">
                 <p className="text-xs font-semibold text-[#191c1e] truncate group-hover:text-[#005FB7] transition-colors">
                   {userName}
-                </p>
-                <p className="text-[11px] text-[#44474d] truncate font-mono">
-                  {userEmail}
                 </p>
               </div>
             </Link>
