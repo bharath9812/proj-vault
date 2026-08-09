@@ -16,6 +16,9 @@ import {
   saveToL1,
   saveToL2,
 } from '@/lib/cache/asset-cache-engine';
+import { ProjectProduct, StagedProductItem } from '@/types/project-products';
+import { AttachProductModal } from './AttachProductModal';
+import { ProjectProductsView } from './ProjectProductsView';
 
 interface ProjectDetailsClientProps {
   decodedId: string;
@@ -55,7 +58,9 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
 
   const [fileList, setFileList] = useState<FileItem[]>([]);
   const [activeFile, setActiveFile] = useState<FileItem | null>(null);
-  const [centerViewMode, setCenterViewMode] = useState<'renderer' | 'fileList'>('renderer');
+  const [centerViewMode, setCenterViewMode] = useState<'renderer' | 'fileList' | 'products'>('renderer');
+  const [projectProducts, setProjectProducts] = useState<ProjectProduct[]>([]);
+  const [showAttachProductModal, setShowAttachProductModal] = useState(false);
 
   // Excel SheetJS Dynamic Workbook Parsing State
   const [excelSheets, setExcelSheets] = useState<string[]>(['120', '240']);
@@ -68,7 +73,7 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
   const [leftTreeCollapsed, setLeftTreeCollapsed] = useState(false);
   const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(100);
-  const [rightPanelTab, setRightPanelTab] = useState<'metadata' | 'downloads' | 'activity' | 'comments'>('metadata');
+  const [rightPanelTab, setRightPanelTab] = useState<'metadata' | 'equipment' | 'downloads' | 'activity' | 'comments'>('metadata');
   const [comments, setComments] = useState<any[]>([]);
   const [assetActivityLogs, setAssetActivityLogs] = useState<any[]>([]);
   const [newComment, setNewComment] = useState('');
@@ -79,6 +84,44 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
   const [queuedFiles, setQueuedFiles] = useState<QueuedFile[]>([]);
   const [isModalDragging, setIsModalDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  // Reusable Enterprise Confirm Dialog State
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    isDestructive?: boolean;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const showConfirm = (options: {
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    isDestructive?: boolean;
+    onConfirm: () => void;
+  }) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: options.title,
+      message: options.message,
+      confirmText: options.confirmText || 'Confirm',
+      cancelText: options.cancelText || 'Cancel',
+      isDestructive: options.isDestructive ?? true,
+      onConfirm: () => {
+        options.onConfirm();
+        setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+      },
+    });
+  };
 
   // Dynamic Excel Parsing via SheetJS when active file changes
   useEffect(() => {
@@ -196,10 +239,12 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
           .or(isUuid(decodedId) ? `project_code.eq.${decodedId},id.eq.${decodedId}` : `project_code.eq.${decodedId}`)
           .single();
 
+        let selectedFiles: FileItem[] = [];
+
         if (projData) {
           setProject(projData);
 
-          const { data: assetsData, error: assetsErr } = await supabase
+          const { data: assetsData } = await supabase
             .from('assets')
             .select('*')
             .or(
@@ -210,7 +255,7 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
             .order('display_order', { ascending: true });
 
           if (assetsData && assetsData.length > 0) {
-            const mappedAssets: FileItem[] = assetsData.map((item: any) => ({
+            selectedFiles = assetsData.map((item: any) => ({
               id: item.id,
               name: item.name,
               folder: item.folder || item.section || 'Drawings',
@@ -226,92 +271,89 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
               fileDataUrl: item.content || item.file_data_url || undefined,
               source: item.content || item.file_data_url ? 'PostgreSQL (Local Cache)' : 'Cloud Storage CDN',
             }));
-
-            setFileList(mappedAssets);
-            setActiveFile(mappedAssets[0]);
-            return;
           }
         }
 
-        // If local storage files found, use them
-        if (localFiles.length > 0) {
-          setFileList(localFiles);
-          setActiveFile(localFiles[0]);
-          return;
+        if (selectedFiles.length === 0) {
+          if (localFiles.length > 0) {
+            selectedFiles = localFiles;
+          } else if (foundLocalProject) {
+            selectedFiles = [];
+          } else {
+            const defaultFiles: FileItem[] = [
+              {
+                id: 'f-1',
+                name: '120 Seater and 240 Seater.drawio',
+                folder: 'Drawings',
+                type: 'DRAWIO / SVG',
+                size: '9.1 MB',
+                updatedAt: '2h ago',
+                rendererType: 'drawio',
+                renderEnabled: true,
+                version: 'v1.0',
+                section: 'Drawings',
+                displayOrder: 1,
+              },
+              {
+                id: 'f-2',
+                name: 'BIOphore.drawio-2.pdf',
+                folder: 'Drawings',
+                type: 'PDF / BLUEPRINT',
+                size: '14.2 MB',
+                updatedAt: '3h ago',
+                rendererType: 'pdf',
+                renderEnabled: true,
+                version: 'v1.0',
+                section: 'Drawings',
+                displayOrder: 2,
+              },
+              {
+                id: 'f-3',
+                name: 'BIOphore.drawio.pdf',
+                folder: 'Drawings',
+                type: 'PDF / BLUEPRINT',
+                size: '12.8 MB',
+                updatedAt: '3h ago',
+                rendererType: 'pdf',
+                renderEnabled: true,
+                version: 'v1.0',
+                section: 'Drawings',
+                displayOrder: 3,
+              },
+              {
+                id: 'f-4',
+                name: '09 Jul 2026 120 and 240 updated for final (2).xlsx',
+                folder: 'BOQ',
+                type: 'XLSX / SPREADSHEET',
+                size: '3.4 MB',
+                updatedAt: '1h ago',
+                rendererType: 'excel',
+                renderEnabled: true,
+                version: 'v2.4',
+                section: 'BOQ',
+                displayOrder: 4,
+              },
+            ];
+
+            const finalFiles = [...defaultFiles];
+            localFiles.forEach((lf) => {
+              if (!finalFiles.some((df) => df.id === lf.id || df.name === lf.name)) {
+                finalFiles.push(lf);
+              }
+            });
+            selectedFiles = finalFiles;
+          }
         }
 
-        if (foundLocalProject) {
-          // New custom project created with 0 files
-          setFileList([]);
+        setFileList(selectedFiles);
+        if (selectedFiles.length > 0) {
+          setActiveFile(selectedFiles[0]);
+        } else {
           setActiveFile(null);
-          return;
         }
 
-        const defaultFiles: FileItem[] = [
-          {
-            id: 'f-1',
-            name: '120 Seater and 240 Seater.drawio',
-            folder: 'Drawings',
-            type: 'DRAWIO / SVG',
-            size: '9.1 MB',
-            updatedAt: '2h ago',
-            rendererType: 'drawio',
-            renderEnabled: true,
-            version: 'v1.0',
-            section: 'Drawings',
-            displayOrder: 1,
-          },
-          {
-            id: 'f-2',
-            name: 'BIOphore.drawio-2.pdf',
-            folder: 'Drawings',
-            type: 'PDF / BLUEPRINT',
-            size: '14.2 MB',
-            updatedAt: '3h ago',
-            rendererType: 'pdf',
-            renderEnabled: true,
-            version: 'v1.0',
-            section: 'Drawings',
-            displayOrder: 2,
-          },
-          {
-            id: 'f-3',
-            name: 'BIOphore.drawio.pdf',
-            folder: 'Drawings',
-            type: 'PDF / BLUEPRINT',
-            size: '12.8 MB',
-            updatedAt: '3h ago',
-            rendererType: 'pdf',
-            renderEnabled: true,
-            version: 'v1.0',
-            section: 'Drawings',
-            displayOrder: 3,
-          },
-          {
-            id: 'f-4',
-            name: '09 Jul 2026 120 and 240 updated for final (2).xlsx',
-            folder: 'BOQ',
-            type: 'XLSX / SPREADSHEET',
-            size: '3.4 MB',
-            updatedAt: '1h ago',
-            rendererType: 'excel',
-            renderEnabled: true,
-            version: 'v2.4',
-            section: 'BOQ',
-            displayOrder: 4,
-          },
-        ];
-
-        // Merge default files with any custom files added locally for mock project P-2408
-        const finalFiles = [...defaultFiles];
-        localFiles.forEach((lf) => {
-          if (!finalFiles.some((df) => df.id === lf.id || df.name === lf.name)) {
-            finalFiles.push(lf);
-          }
-        });
-
-        setFileList(finalFiles);
-        setActiveFile(finalFiles[0]);
+        // Unconditionally load attached hardware products
+        await loadProjectProducts(projData?.id || decodedId, projData?.project_code || decodedId);
       } catch (err) {
         console.error('Error loading project details:', err);
       }
@@ -319,6 +361,270 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
 
     loadProjectData();
   }, [decodedId]);
+
+  const loadProjectProducts = async (projId: string, secondaryId?: string) => {
+    const idsToQuery = Array.from(
+      new Set(
+        [projId, secondaryId, decodedId, project?.id, project?.project_code].filter(
+          (x): x is string => !!x && typeof x === 'string'
+        )
+      )
+    );
+
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('project_products')
+        .select(`
+          *,
+          product:products(
+            *,
+            brand:brands(*),
+            category:product_categories(*),
+            family:product_families(*),
+            media:product_media(*)
+          )
+        `)
+        .in('project_id', idsToQuery)
+        .order('created_at', { ascending: true });
+
+      if (data && data.length > 0) {
+        // Deduplicate in memory by product_id
+        const seen = new Set<string>();
+        const uniqueProducts: ProjectProduct[] = [];
+        for (const item of data) {
+          if (!seen.has(item.product_id)) {
+            seen.add(item.product_id);
+            uniqueProducts.push(item);
+          }
+        }
+
+        setProjectProducts(uniqueProducts);
+        try {
+          idsToQuery.forEach((id) => {
+            localStorage.setItem(
+              'ekms_project_products_' + id.toLowerCase(),
+              JSON.stringify(uniqueProducts)
+            );
+          });
+        } catch {}
+        return;
+      }
+    } catch (err) {
+      console.warn('project_products table query warning:', err);
+    }
+
+    // Fallback to localStorage cache
+    try {
+      for (const id of idsToQuery) {
+        const cached = localStorage.getItem('ekms_project_products_' + id.toLowerCase());
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setProjectProducts(parsed);
+            return;
+          }
+        }
+      }
+    } catch {}
+  };
+
+  // Realtime sync for equipment additions / updates / deletions across all active sessions
+  useEffect(() => {
+    const projId = project?.id || decodedId;
+    if (!projId) return;
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`realtime_pp_pub_${projId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'project_products',
+        },
+        (payload: any) => {
+          if (
+            payload.new?.project_id === projId ||
+            payload.old?.project_id === projId ||
+            payload.new?.project_id === decodedId ||
+            payload.old?.project_id === decodedId ||
+            payload.new?.project_id === project?.project_code ||
+            payload.old?.project_id === project?.project_code
+          ) {
+            loadProjectProducts(projId, project?.project_code);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [project?.id, project?.project_code, decodedId]);
+
+  const handleAttachProducts = async (stagedItems: StagedProductItem[]) => {
+    const supabase = createClient();
+    const targetProjectId = project?.id || decodedId;
+    let currentList = [...projectProducts];
+
+    for (const item of stagedItems) {
+      const existingIdx = currentList.findIndex((pp) => pp.product_id === item.product.id);
+
+      if (existingIdx >= 0) {
+        const existing = currentList[existingIdx];
+        const newQty = (existing.quantity || 1) + item.quantity;
+        const newRole = item.system_role || existing.system_role;
+        const newLoc = item.location_tag || existing.location_tag;
+        const newNotes = item.notes || existing.notes;
+
+        currentList[existingIdx] = {
+          ...existing,
+          quantity: newQty,
+          system_role: newRole,
+          location_tag: newLoc,
+          notes: newNotes,
+        };
+
+        try {
+          await supabase
+            .from('project_products')
+            .update({
+              quantity: newQty,
+              system_role: newRole,
+              location_tag: newLoc,
+              notes: newNotes,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existing.id);
+        } catch (err) {
+          console.warn('Error updating existing project product:', err);
+        }
+      } else {
+        let insertedPP: ProjectProduct | null = null;
+        try {
+          const { data, error } = await supabase
+            .from('project_products')
+            .upsert(
+              {
+                project_id: targetProjectId,
+                product_id: item.product.id,
+                quantity: item.quantity,
+                system_role: item.system_role,
+                location_tag: item.location_tag,
+                notes: item.notes,
+              },
+              { onConflict: 'project_id,product_id' }
+            )
+            .select(`
+              *,
+              product:products(
+                *,
+                brand:brands(*),
+                category:product_categories(*),
+                family:product_families(*),
+                media:product_media(*)
+              )
+            `)
+            .single();
+
+          if (data) {
+            insertedPP = data;
+          }
+        } catch (err) {
+          console.warn('project_products DB upsert fallback:', err);
+        }
+
+        if (!insertedPP) {
+          insertedPP = {
+            id: 'pp-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+            project_id: targetProjectId,
+            product_id: item.product.id,
+            quantity: item.quantity,
+            system_role: item.system_role,
+            location_tag: item.location_tag,
+            notes: item.notes,
+            product: item.product,
+            created_at: new Date().toISOString(),
+          };
+        }
+        currentList.push(insertedPP);
+      }
+    }
+
+    setProjectProducts(currentList);
+    try {
+      localStorage.setItem(
+        'ekms_project_products_' + targetProjectId.toLowerCase(),
+        JSON.stringify(currentList)
+      );
+      if (decodedId && decodedId.toLowerCase() !== targetProjectId.toLowerCase()) {
+        localStorage.setItem(
+          'ekms_project_products_' + decodedId.toLowerCase(),
+          JSON.stringify(currentList)
+        );
+      }
+    } catch {}
+  };
+
+  const handleUpdateProductQuantity = async (ppId: string, newQty: number) => {
+    const projId = project?.id || decodedId;
+    const updated = projectProducts.map((pp) =>
+      pp.id === ppId ? { ...pp, quantity: newQty } : pp
+    );
+    setProjectProducts(updated);
+    try {
+      localStorage.setItem('ekms_project_products_' + projId.toLowerCase(), JSON.stringify(updated));
+      const supabase = createClient();
+      await supabase.from('project_products').update({ quantity: newQty }).eq('id', ppId);
+    } catch (e) {
+      console.warn('Update product quantity DB warning:', e);
+    }
+  };
+
+  const handleUpdateProductRoleOrLocation = async (
+    ppId: string,
+    role: string,
+    location: string
+  ) => {
+    const projId = project?.id || decodedId;
+    const updated = projectProducts.map((pp) =>
+      pp.id === ppId ? { ...pp, system_role: role, location_tag: location } : pp
+    );
+    setProjectProducts(updated);
+    try {
+      localStorage.setItem('ekms_project_products_' + projId.toLowerCase(), JSON.stringify(updated));
+      const supabase = createClient();
+      await supabase
+        .from('project_products')
+        .update({ system_role: role, location_tag: location })
+        .eq('id', ppId);
+    } catch (e) {
+      console.warn('Update product role/location DB warning:', e);
+    }
+  };
+
+  const handleRemoveProduct = (ppId: string, productName: string) => {
+    showConfirm({
+      title: 'Remove Hardware from Project',
+      message: `Are you sure you want to remove ${productName} from this project? This will unlink it from the equipment schedule.`,
+      confirmText: 'Remove',
+      isDestructive: true,
+      onConfirm: async () => {
+        const projId = project?.id || decodedId;
+        const updated = projectProducts.filter((pp) => pp.id !== ppId);
+        setProjectProducts(updated);
+        try {
+          localStorage.setItem('ekms_project_products_' + projId.toLowerCase(), JSON.stringify(updated));
+          const supabase = createClient();
+          await supabase.from('project_products').delete().eq('id', ppId);
+        } catch (e) {
+          console.warn('Delete project product DB warning:', e);
+        }
+      },
+    });
+  };
 
   const saveProjectFilesToCache = (files: FileItem[]) => {
     try {
@@ -341,9 +647,30 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
     }
   };
 
-  // UNTAMPERED FILE DOWNLOAD HANDLER
-  const handleDownloadFile = (file: FileItem) => {
-    // If exact raw fileDataUrl (Base64 Data URI) exists, download untampered original bytes
+  // UNTAMPERED CROSS-BROWSER FILE DOWNLOAD HANDLER
+  const handleDownloadFile = async (file: FileItem) => {
+    // If it's a remote storage URL, fetch as blob first so Chrome/Edge/Firefox do not ignore the download attribute
+    if (file.fileDataUrl && (file.fileDataUrl.startsWith('http://') || file.fileDataUrl.startsWith('https://'))) {
+      try {
+        const res = await fetch(file.fileDataUrl);
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = file.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        return;
+      } catch (err) {
+        console.warn('Direct blob download error, falling back to window.open:', err);
+        window.open(file.fileDataUrl, '_blank');
+        return;
+      }
+    }
+
+    // If exact raw fileDataUrl (Data URI or Blob URL) exists, download directly
     if (file.fileDataUrl && !file.fileDataUrl.endsWith('loaded')) {
       const a = document.createElement('a');
       a.href = file.fileDataUrl;
@@ -541,124 +868,119 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
   const handleDownloadAllZip = () => {
     if (fileList.length === 0) return;
     fileList.forEach((file: any) => handleDownloadFile(file));
-  };
-
-  const handleDeleteIndividualFile = async (fileId: string, fileName: string) => {
-    if (!confirm(`Are you sure you want to delete file "${fileName}" from this project?`)) {
-      return;
-    }
-
-    try {
-      const supabase = createClient();
-
-      // 1. Delete physical file from Supabase Storage
-      try {
-        const projectFolder = project.project_code || project.id;
-        const storagePath = `${projectFolder}/${fileName}`;
-        await supabase.storage.from('assets').remove([storagePath]);
-      } catch (storageErr) {
-        console.warn('Supabase storage cleanup error:', storageErr);
-      }
-
-      // 2. Delete metadata from PostgreSQL
-      await supabase.from('assets').delete().eq('id', fileId);
-
-      await supabase.from('activity_logs').insert({
-        project_id: project.id,
-        user_name: project.engineer_name || 'Lead Engineer',
-        action: 'deleted asset',
-        details: { asset_name: fileName }
-      });
-
-      const updated = fileList.filter((f: any) => f.id !== fileId);
-      setFileList(updated);
-
-      if (activeFile?.id === fileId) {
-        setActiveFile(updated.length > 0 ? updated[0] : null);
-      }
-
-      // Update local storage cache
-      saveProjectFilesToCache(updated);
-    } catch (err) {
-      console.error('Error deleting file:', err);
-    }
-  };
-
-  const handleDeleteEntireProject = async () => {
-    const code = project.project_code || project.id;
-    if (
-      !confirm(
-        `Are you sure you want to permanently DELETE project "${project.name}" (${code})?\n\nThis action cannot be undone. All technical files, comments, and project records will be erased.`
-      )
-    ) {
-      return;
-    }
-
-    try {
-      const supabase = createClient();
-
-      const isUuid = (str: string) =>
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-
-      const { data: projRecord } = await supabase
-        .from('projects')
-        .select('id, project_code')
-        .or(isUuid(code) ? `id.eq.${code},project_code.eq.${code}` : `project_code.eq.${code}`)
-        .maybeSingle();
-
-      const realUuid = projRecord?.id || (project.id && isUuid(project.id) ? project.id : null);
-      const realCode = projRecord?.project_code || code;
-
-      if (realUuid) {
-        await supabase.from('assets').delete().eq('project_id', realUuid);
-        await supabase.from('comments').delete().eq('project_id', realUuid);
-      }
-
-      // Clear Supabase Storage files
-      try {
-        const folderPaths = [realUuid, realCode].filter(Boolean);
-        for (const folder of folderPaths) {
-          if (!folder) continue;
-          const { data: files } = await supabase.storage.from('assets').list(folder);
-          if (files && files.length > 0) {
-            const filesToRemove = files.map((f: any) => `${folder}/${f.name}`);
-            await supabase.storage.from('assets').remove(filesToRemove);
+  };  const handleDeleteIndividualFile = (fileId: string, fileName: string) => {
+    showConfirm({
+      title: 'Delete Technical Asset File',
+      message: `Are you sure you want to permanently delete "${fileName}" from this project? This action cannot be undone.`,
+      confirmText: 'Delete',
+      isDestructive: true,
+      onConfirm: async () => {
+        try {
+          const supabase = createClient();
+          const projectFolder = project.project_code || project.id;
+          const storagePath = `${projectFolder}/${fileName}`;
+          
+          try {
+            await supabase.storage.from('assets').remove([storagePath]);
+          } catch (storageErr) {
+            console.warn('Supabase storage cleanup error:', storageErr);
           }
+
+          await supabase.from('assets').delete().eq('id', fileId);
+
+          await supabase.from('activity_logs').insert({
+            project_id: project.id,
+            user_name: project.engineer_name || 'Lead Engineer',
+            action: 'deleted asset',
+            details: { asset_name: fileName }
+          });
+
+          const updated = fileList.filter((f: any) => f.id !== fileId);
+          setFileList(updated);
+
+          if (activeFile?.id === fileId) {
+            setActiveFile(updated.length > 0 ? updated[0] : null);
+          }
+
+          saveProjectFilesToCache(updated);
+        } catch (err) {
+          console.error('Error deleting file:', err);
         }
-      } catch (storageErr) {
-        console.warn('Storage cleanup error:', storageErr);
       }
+    });
+  };  const handleDeleteEntireProject = () => {
+    const code = project.project_code || project.id;
+    showConfirm({
+      title: 'Delete Entire Engineering Project',
+      message: `Are you sure you want to permanently delete "${project.name}" (${code})? This will delete all assets, equipment schedules, and history. This action is irreversible.`,
+      confirmText: 'Delete Project',
+      isDestructive: true,
+      onConfirm: async () => {
+        try {
+          const supabase = createClient();
 
-      if (realUuid) {
-        await supabase.from('projects').delete().eq('id', realUuid);
-      } else {
-        await supabase.from('projects').delete().eq('project_code', realCode);
-      }
+          const isUuid = (str: string) =>
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 
-      // Clear from local storage
-      try {
-        localStorage.removeItem(`ekms_project_files_${code.toLowerCase()}`);
-        localStorage.removeItem(`ekms_project_files_${realCode.toLowerCase()}`);
+          const { data: projRecord } = await supabase
+            .from('projects')
+            .select('id, project_code')
+            .or(isUuid(code) ? `id.eq.${code},project_code.eq.${code}` : `project_code.eq.${code}`)
+            .maybeSingle();
 
-        const storedStr = localStorage.getItem('ekms_created_projects');
-        if (storedStr) {
-          const storedList = JSON.parse(storedStr);
-          const updated = storedList.filter(
-            (p: any) =>
-              p.id?.toLowerCase() !== code.toLowerCase() &&
-              p.project_code?.toLowerCase() !== code.toLowerCase() &&
-              p.id?.toLowerCase() !== realCode.toLowerCase()
-          );
-          localStorage.setItem('ekms_created_projects', JSON.stringify(updated));
+          const realUuid = projRecord?.id || (project.id && isUuid(project.id) ? project.id : null);
+          const realCode = projRecord?.project_code || code;
+
+          if (realUuid) {
+            await supabase.from('assets').delete().eq('project_id', realUuid);
+            await supabase.from('comments').delete().eq('project_id', realUuid);
+          }
+
+          try {
+            const folderPaths = [realUuid, realCode].filter(Boolean);
+            for (const folder of folderPaths) {
+              if (!folder) continue;
+              const { data: files } = await supabase.storage.from('assets').list(folder);
+              if (files && files.length > 0) {
+                const filesToRemove = files.map((f: any) => `${folder}/${f.name}`);
+                await supabase.storage.from('assets').remove(filesToRemove);
+              }
+            }
+          } catch (storageErr) {
+            console.warn('Storage cleanup error:', storageErr);
+          }
+
+          if (realUuid) {
+            await supabase.from('projects').delete().eq('id', realUuid);
+          } else {
+            await supabase.from('projects').delete().eq('project_code', realCode);
+          }
+
+          try {
+            localStorage.removeItem(`ekms_project_files_${code.toLowerCase()}`);
+            localStorage.removeItem(`ekms_project_files_${realCode.toLowerCase()}`);
+
+            const storedStr = localStorage.getItem('ekms_created_projects');
+            if (storedStr) {
+              const storedList = JSON.parse(storedStr);
+              const updated = storedList.filter(
+                (p: any) =>
+                  p.id?.toLowerCase() !== code.toLowerCase() &&
+                  p.project_code?.toLowerCase() !== code.toLowerCase() &&
+                  p.id?.toLowerCase() !== realCode.toLowerCase()
+              );
+              localStorage.setItem('ekms_created_projects', JSON.stringify(updated));
+            }
+          } catch (e) {
+            console.warn('Error clearing deleted project from local storage:', e);
+          }
+
+          router.push('/projects');
+        } catch (err) {
+          console.error('Error deleting project:', err);
         }
-      } catch (e) {
-        console.warn('Error clearing deleted project from local storage:', e);
       }
-
-      router.push('/projects');
-    } catch (err) {
-      console.error('Error deleting project:', err);
-    }
+    });
   };
 
   const handleAddComment = async (e: React.FormEvent) => {
@@ -833,22 +1155,30 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
           queuedFiles.map(async (f: any) => {
             if (f.fileDataUrl) {
               try {
-                const base64 = f.fileDataUrl.split(',')[1] || f.fileDataUrl;
-                const binaryStr = atob(base64);
-                const bytes = new Uint8Array(binaryStr.length);
-                for (let i = 0; i < binaryStr.length; i++) {
-                  bytes[i] = binaryStr.charCodeAt(i);
+                let blob: Blob | null = null;
+                const mime = f.fileDataUrl.match(/data:(.*?);/)?.[1] || 'application/octet-stream';
+                if (f.fileDataUrl.includes(';base64,')) {
+                  const base64 = f.fileDataUrl.split(';base64,')[1];
+                  const binaryStr = window.atob(base64);
+                  const bytes = new Uint8Array(binaryStr.length);
+                  for (let i = 0; i < binaryStr.length; i++) {
+                    bytes[i] = binaryStr.charCodeAt(i);
+                  }
+                  blob = new Blob([bytes], { type: mime });
+                } else if (f.fileDataUrl.startsWith('data:')) {
+                  const rawData = decodeURIComponent(f.fileDataUrl.split(',')[1] || '');
+                  blob = new Blob([rawData], { type: mime });
                 }
-                const mime = f.fileDataUrl.match(/:(.*?);/)?.[1] || 'application/octet-stream';
-                const blob = new Blob([bytes], { type: mime });
 
-                const projectFolder = project.project_code || project.id;
-                const storagePath = `${projectFolder}/${f.name}`;
-                await supabase.storage.from('assets').upload(storagePath, blob, {
-                  contentType: mime,
-                  upsert: true,
-                  cacheControl: '86400', // Cache for 1 day to save bandwidth
-                });
+                if (blob) {
+                  const projectFolder = project.project_code || project.id;
+                  const storagePath = `${projectFolder}/${f.name}`;
+                  await supabase.storage.from('assets').upload(storagePath, blob, {
+                    contentType: mime,
+                    upsert: true,
+                    cacheControl: '86400', // Cache for 1 day to save bandwidth
+                  });
+                }
               } catch (storageErr) {
                 console.warn('Supabase storage upload error:', storageErr);
               }
@@ -1342,6 +1672,17 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
                     <span>Active Renderer</span>
                   </button>
                   <button
+                    onClick={() => setCenterViewMode('products')}
+                    className={`px-3 py-1 rounded transition-colors flex items-center gap-1.5 ${
+                      centerViewMode === 'products'
+                        ? 'bg-white text-[#05162e] font-bold shadow-sm'
+                        : 'text-[#44474d] hover:text-[#05162e]'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[15px]">devices_other</span>
+                    <span>Equipment ({projectProducts.length})</span>
+                  </button>
+                  <button
                     onClick={() => setCenterViewMode('fileList')}
                     className={`px-3 py-1 rounded transition-colors flex items-center gap-1.5 ${
                       centerViewMode === 'fileList'
@@ -1492,12 +1833,26 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
                         try {
                           const parts = file.fileDataUrl.split(',');
                           if (parts.length > 1) {
-                            return decodeURIComponent(escape(atob(parts[1])));
+                            const header = parts[0];
+                            const body = parts.slice(1).join(',');
+                            if (header.includes(';base64')) {
+                              const binString = window.atob(body);
+                              const bytes = Uint8Array.from(binString, (m) => m.codePointAt(0)!);
+                              return new TextDecoder().decode(bytes);
+                            } else {
+                              return decodeURIComponent(body);
+                            }
                           }
                         } catch (e) {
                           try {
-                            return atob(file.fileDataUrl.split(',')[1]);
-                          } catch (err) {}
+                            return decodeURIComponent(escape(window.atob(file.fileDataUrl.split(',')[1])));
+                          } catch {
+                            try {
+                              return window.atob(file.fileDataUrl.split(',')[1]);
+                            } catch {
+                              return file.fileDataUrl;
+                            }
+                          }
                         }
                       }
                       return file.fileDataUrl;
@@ -1812,15 +2167,26 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
                     );
                   }
 
-                  // 4. Image Renderer
-                  if (activeFile.rendererType === 'image' || lowerName.endsWith('.png') || lowerName.endsWith('.jpg')) {
+                  // 4. Image Renderer (PNG, JPG, JPEG, WEBP, SVG, GIF, AVIF, BMP, ICO)
+                  if (
+                    activeFile.rendererType === 'image' ||
+                    lowerName.endsWith('.png') ||
+                    lowerName.endsWith('.jpg') ||
+                    lowerName.endsWith('.jpeg') ||
+                    lowerName.endsWith('.webp') ||
+                    lowerName.endsWith('.svg') ||
+                    lowerName.endsWith('.gif') ||
+                    lowerName.endsWith('.avif') ||
+                    lowerName.endsWith('.bmp') ||
+                    lowerName.endsWith('.ico')
+                  ) {
                     if (activeFile.fileDataUrl) {
                       return (
-                        <div className="flex flex-col gap-3 w-full h-full flex-1 items-center justify-center">
+                        <div className="flex flex-col gap-3 w-full h-full flex-1 items-center justify-center p-4">
                           <img
                             src={activeFile.fileDataUrl}
                             alt={activeFile.name}
-                            className="max-w-full max-h-[550px] object-contain border border-[#c5c6ce] rounded shadow-sm"
+                            className="max-w-full max-h-[580px] object-contain border border-[#c5c6ce] rounded shadow-sm bg-white"
                           />
                         </div>
                       );
@@ -1856,7 +2222,7 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
                           </div>
                         </div>
                         <pre className="bg-[#05162e] text-white p-5 rounded font-mono text-xs leading-relaxed overflow-x-auto border border-[#05162e] w-full flex-1">
-                          {activeFile.content ||
+                          {getFileTextContent(activeFile) ||
                             `@startuml\ntitle ${activeFile.name}\nnode ${project.name}\nnode ${activeFile.name}\n${project.name} -> ${activeFile.name} : 100G Link\n@enduml`}
                         </pre>
                       </div>
@@ -1892,7 +2258,7 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
                           </div>
                         </div>
                         <pre className="bg-[#f7f9fc] border border-[#c5c6ce] p-5 rounded font-sans text-xs text-[#191c1e] leading-relaxed whitespace-pre-wrap w-full flex-1 overflow-auto">
-                          {activeFile.content ||
+                          {getFileTextContent(activeFile) ||
                             `# Technical Specification: ${activeFile.name}\n\n## Overview\n- File Name: ${activeFile.name}\n- Project: ${project.name}\n- Category: ${project.category}\n- Client: ${project.client}`}
                         </pre>
                       </div>
@@ -1926,6 +2292,17 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
                 })()}
               </div>
             </div>
+          ) : centerViewMode === 'products' ? (
+            <ProjectProductsView
+              projectId={project?.id || decodedId}
+              projectCode={project?.project_code || decodedId}
+              projectName={project?.name || 'Project'}
+              projectProducts={projectProducts}
+              onOpenAttachModal={() => setShowAttachProductModal(true)}
+              onUpdateQuantity={handleUpdateProductQuantity}
+              onUpdateRoleOrLocation={handleUpdateProductRoleOrLocation}
+              onRemoveProduct={handleRemoveProduct}
+            />
           ) : (
             /* Mode 2: High Density Table of All Project Files & Download Links */
             <div className="flex-1 overflow-auto p-4 bg-[#f7f9fc] w-full">
@@ -2063,6 +2440,16 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
                   }`}
                 >
                   Metadata
+                </button>
+                <button
+                  onClick={() => setRightPanelTab('equipment')}
+                  className={`px-3 py-2.5 text-center border-b-2 whitespace-nowrap transition-colors ${
+                    rightPanelTab === 'equipment'
+                      ? 'border-[#005FB7] text-[#05162e] font-bold bg-white'
+                      : 'border-transparent hover:text-[#05162e]'
+                  }`}
+                >
+                  Equipment ({projectProducts.length})
                 </button>
                 <button
                   onClick={() => setRightPanelTab('downloads')}
@@ -2332,6 +2719,95 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
                       )}
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* Dedicated Equipment Tab in Inspector Panel */}
+              {rightPanelTab === 'equipment' && (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-[#e0e3e6]">
+                    <span className="font-bold text-[#05162e]">
+                      Equipment ({projectProducts.length})
+                    </span>
+                    <button
+                      onClick={() => setShowAttachProductModal(true)}
+                      className="text-[11px] font-bold text-[#005FB7] hover:underline flex items-center gap-0.5"
+                    >
+                      <span className="material-symbols-outlined text-[13px]">add</span>
+                      <span>Attach</span>
+                    </button>
+                  </div>
+
+                  {projectProducts.length === 0 ? (
+                    <div className="text-[11px] text-[#75777e] text-center p-4 border border-dashed border-[#c5c6ce] rounded flex flex-col items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[24px] opacity-40">devices_other</span>
+                      <span className="font-semibold text-[#05162e]">No hardware attached yet</span>
+                      <button
+                        onClick={() => setShowAttachProductModal(true)}
+                        className="text-[11px] font-bold text-[#005FB7] hover:underline mt-1"
+                      >
+                        + Attach from Library
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {projectProducts.map((pp) => {
+                        const p = pp.product;
+                        return (
+                          <div
+                            key={pp.id}
+                            className="bg-[#f7f9fc] border border-[#c5c6ce] rounded p-2.5 flex flex-col gap-1.5 hover:border-[#005FB7] transition-colors"
+                          >
+                            <div className="flex items-start justify-between gap-1.5">
+                              <div className="min-w-0 flex-1">
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-[#005FB7] font-mono">
+                                  {p?.brand?.name || 'Hardware'}
+                                </span>
+                                <h5 className="font-bold text-xs text-[#05162e] truncate">
+                                  {p?.model_name || 'Hardware Item'}
+                                </h5>
+                              </div>
+                              <span className="text-[10px] font-mono font-bold bg-[#d6e3ff] text-[#001b3c] px-1.5 py-0.5 rounded shrink-0">
+                                x{pp.quantity || 1}
+                              </span>
+                            </div>
+
+                            {pp.system_role && (
+                              <p className="text-[11px] text-[#44474d] truncate">
+                                <span className="text-[#75777e]">Role: </span>
+                                {pp.system_role}
+                              </p>
+                            )}
+
+                            {pp.location_tag && (
+                              <p className="text-[10px] font-mono text-[#005FB7] truncate">
+                                📍 {pp.location_tag}
+                              </p>
+                            )}
+
+                            <div className="flex items-center justify-between pt-1 border-t border-[#e6e8eb]">
+                              <button
+                                onClick={() => setCenterViewMode('products')}
+                                className="text-[10px] font-bold text-[#005FB7] hover:underline flex items-center gap-0.5"
+                              >
+                                <span>Inspect in Viewport</span>
+                                <span className="material-symbols-outlined text-[12px]">arrow_forward</span>
+                              </button>
+                              <a
+                                href="/library"
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[10px] text-[#75777e] hover:text-[#05162e] flex items-center gap-0.5"
+                              >
+                                <span>/library</span>
+                                <span className="material-symbols-outlined text-[11px]">open_in_new</span>
+                              </a>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -2695,6 +3171,58 @@ export function ProjectDetailsClient({ decodedId }: ProjectDetailsClientProps) {
           </div>
         </div>
       )}
+
+      {/* Reusable Confirm Dialog Overlay */}
+      {confirmDialog.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-white border border-[#c5c6ce] rounded-lg shadow-xl max-w-sm w-full mx-4 overflow-hidden flex flex-col">
+            <div className="bg-[#f2f4f7] px-4 py-3 border-b border-[#c5c6ce] flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-[#05162e]">
+                {confirmDialog.title}
+              </span>
+              <button
+                onClick={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))}
+                className="text-[#75777e] hover:text-[#05162e] rounded p-1 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+            <div className="p-4 flex-1">
+              <p className="text-xs text-[#44474d] leading-relaxed">
+                {confirmDialog.message}
+              </p>
+            </div>
+            <div className="bg-[#f7f9fc] border-t border-[#c5c6ce] px-4 py-3 flex items-center justify-end gap-2 shrink-0">
+              <button
+                onClick={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))}
+                className="px-3.5 py-1.5 border border-[#c5c6ce] rounded text-xs font-bold text-[#44474d] hover:bg-[#eceef1] transition-colors"
+              >
+                {confirmDialog.cancelText}
+              </button>
+              <button
+                onClick={confirmDialog.onConfirm}
+                className={`px-4 py-1.5 rounded text-xs font-bold text-white transition-colors shadow-sm ${
+                  confirmDialog.isDestructive
+                    ? 'bg-[#ba1a1a] hover:bg-[#8c0009]'
+                    : 'bg-[#005FB7] hover:bg-[#05162e]'
+                }`}
+              >
+                {confirmDialog.confirmText}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Attach Products & Hardware from Enterprise Library Modal */}
+      <AttachProductModal
+        isOpen={showAttachProductModal}
+        onClose={() => setShowAttachProductModal(false)}
+        onAttachProducts={handleAttachProducts}
+        existingProductIds={projectProducts.map((pp) => pp.product_id)}
+        projectName={project?.name || 'Project'}
+        projectCode={project?.project_code || decodedId}
+      />
     </div>
   );
 }

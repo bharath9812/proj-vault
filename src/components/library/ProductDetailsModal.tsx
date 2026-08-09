@@ -147,7 +147,7 @@ export function ProductDetailsModal({
           {/* Left Column: Media Gallery & Documents (5 Cols) */}
           <div className="lg:col-span-5 p-6 bg-[#f7f9fc] flex flex-col gap-5">
             {/* Primary Media Display Viewport */}
-            <div className="relative aspect-4/3 w-full bg-[#0b1329] border border-[#c5c6ce] rounded-lg overflow-hidden flex items-center justify-center shadow-inner group p-2">
+            <div className="relative aspect-4/3 w-full bg-white border border-[#c5c6ce] rounded-lg overflow-hidden flex items-center justify-center shadow-inner group p-2">
               {currentMedia.type === 'image' ? (
                 <img
                   src={currentMedia.url}
@@ -196,7 +196,7 @@ export function ProductDetailsModal({
                   <button
                     key={idx}
                     onClick={() => setActiveMediaIndex(idx)}
-                    className={`relative w-16 h-14 rounded border-2 shrink-0 overflow-hidden transition-all bg-[#0b1329] p-0.5 ${
+                    className={`relative w-16 h-14 rounded border-2 shrink-0 overflow-hidden transition-all bg-white p-0.5 ${
                       activeMediaIndex === idx
                         ? 'border-[#005FB7] ring-2 ring-[#005FB7]/30'
                         : 'border-[#c5c6ce] opacity-70 hover:opacity-100'

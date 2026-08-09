@@ -1007,6 +1007,7 @@ export function AddProductModal({
           title: img.title || 'Product Image',
           type: 'image',
           url: img.url,
+          is_featured: !!img.isHero,
           metadata: img.metadata || {},
         };
         if (img.id) {
@@ -1016,6 +1017,15 @@ export function AddProductModal({
           const { data: newMedia } = await supabase.from('product_media').insert([imgPayload]).select().single();
           if (newMedia) savedMediaIds.push(newMedia.id);
         }
+      }
+
+      // Sync final Hero Image URL back to product row
+      const resolvedHero = finalImages.find((img) => img.isHero) || finalImages[0];
+      if (resolvedHero && resolvedHero.url) {
+        await supabase
+          .from('products')
+          .update({ hero_image_url: resolvedHero.url })
+          .eq('id', productId);
       }
 
       for (const doc of finalDocs) {

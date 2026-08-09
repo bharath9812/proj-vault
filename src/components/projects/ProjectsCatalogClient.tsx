@@ -420,14 +420,19 @@ export function ProjectsCatalogClient() {
               let mimeType = 'application/octet-stream';
 
               if (file.fileDataUrl) {
-                const base64 = file.fileDataUrl.split(',')[1] || file.fileDataUrl;
-                const binaryStr = atob(base64);
-                const bytes = new Uint8Array(binaryStr.length);
-                for (let i = 0; i < binaryStr.length; i++) {
-                  bytes[i] = binaryStr.charCodeAt(i);
+                mimeType = file.fileDataUrl.match(/data:(.*?);/)?.[1] || 'application/octet-stream';
+                if (file.fileDataUrl.includes(';base64,')) {
+                  const base64 = file.fileDataUrl.split(';base64,')[1];
+                  const binaryStr = window.atob(base64);
+                  const bytes = new Uint8Array(binaryStr.length);
+                  for (let i = 0; i < binaryStr.length; i++) {
+                    bytes[i] = binaryStr.charCodeAt(i);
+                  }
+                  blobToUpload = new Blob([bytes], { type: mimeType });
+                } else if (file.fileDataUrl.startsWith('data:')) {
+                  const rawData = decodeURIComponent(file.fileDataUrl.split(',')[1] || '');
+                  blobToUpload = new Blob([rawData], { type: mimeType });
                 }
-                mimeType = file.fileDataUrl.match(/:(.*?);/)?.[1] || 'application/octet-stream';
-                blobToUpload = new Blob([bytes], { type: mimeType });
               } else {
                 // Fetch sample file binaries from local endpoints for initial attached files
                 if (file.name.endsWith('.drawio')) {

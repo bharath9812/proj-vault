@@ -24,56 +24,125 @@ interface DrawioOfficialViewerProps {
  */
 export function DrawioOfficialViewer({
   fileName,
+  xmlDataUrl,
   xmlRawContent,
   onDownload,
 }: DrawioOfficialViewerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [xml, setXml] = useState<string>('');
-  const [mode, setMode] = useState<'static' | 'iframe'>('iframe'); // Default to embed iFrame as requested
+  const [mode, setMode] = useState<'static' | 'iframe'>('iframe'); // Default to embed iFrame
   const [loading, setLoading] = useState<boolean>(true);
   const [scriptLoaded, setScriptLoaded] = useState<boolean>(false);
   const initHandledRef = useRef<boolean>(false);
 
-  // ── 1. Fetch XML ──────────────────────────────────────────────────────
+  // Helper to decode various XML input formats (Data URIs, Base64, raw XML)
+  const decodeXmlPayload = (payload: string): string => {
+    if (!payload) return '';
+    if (payload.trim().startsWith('<')) return payload;
+
+    if (payload.startsWith('data:')) {
+      const parts = payload.split(',');
+      if (parts.length > 1) {
+        const header = parts[0];
+        const body = parts.slice(1).join(',');
+        if (header.includes(';base64')) {
+          try {
+            const binString = window.atob(body);
+            const bytes = Uint8Array.from(binString, (m) => m.codePointAt(0)!);
+            return new TextDecoder().decode(bytes);
+          } catch {
+            try {
+              return decodeURIComponent(escape(window.atob(body)));
+            } catch {
+              return window.atob(body);
+            }
+          }
+        } else {
+          try {
+            return decodeURIComponent(body);
+          } catch {
+            return body;
+          }
+        }
+      }
+    }
+    return payload;
+  };
+
+  // ── 1. Fetch / Decode XML ─────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
 
-    if (xmlRawContent && xmlRawContent.length > 50) {
-      setXml(xmlRawContent);
+    // Case A: Raw XML string directly passed
+    if (xmlRawContent && xmlRawContent.length > 20) {
+      const decoded = decodeXmlPayload(xmlRawContent);
+      setXml(decoded);
       setLoading(false);
       return;
     }
 
-    fetch('/api/drawio')
-      .then((res) => res.text())
-      .then((text) => {
-        if (!cancelled && text.startsWith('<mxfile')) {
-          setXml(text);
-          setLoading(false);
-        }
-      })
-      .catch((err) => {
-        console.error('Failed to fetch drawio XML:', err);
-        if (!cancelled) setLoading(false);
-      });
+    // Case B: Data URL or Supabase storage URL passed
+    if (xmlDataUrl) {
+      if (xmlDataUrl.startsWith('data:') || xmlDataUrl.trim().startsWith('<')) {
+        const decoded = decodeXmlPayload(xmlDataUrl);
+        setXml(decoded);
+        setLoading(false);
+        return;
+      }
+
+      if (xmlDataUrl.startsWith('http://') || xmlDataUrl.startsWith('https://')) {
+        fetch(xmlDataUrl)
+          .then((res) => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.text();
+          })
+          .then((text) => {
+            if (!cancelled) {
+              setXml(text);
+              setLoading(false);
+            }
+          })
+          .catch((err) => {
+            console.warn('[DrawioViewer] Remote fetch error, falling back to local api:', err);
+            if (!cancelled) fetchLocalFallback();
+          });
+        return;
+      }
+    }
+
+    // Case C: Fallback to local /api/drawio route
+    const fetchLocalFallback = () => {
+      fetch('/api/drawio')
+        .then((res) => res.text())
+        .then((text) => {
+          if (!cancelled && text.startsWith('<mxfile')) {
+            setXml(text);
+            setLoading(false);
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to fetch drawio XML:', err);
+          if (!cancelled) setLoading(false);
+        });
+    };
+
+    fetchLocalFallback();
 
     return () => {
       cancelled = true;
     };
-  }, [xmlRawContent]);
+  }, [xmlRawContent, xmlDataUrl]);
 
   // ── 2. Static Viewer (viewer-static.min.js) ───────────────────────────
   useEffect(() => {
     if (!xml || mode !== 'static' || !containerRef.current) return;
 
-    // If script already loaded in a prior render, just process elements
     if (scriptLoaded && (window as any).GraphViewer) {
       renderStaticViewer();
       return;
     }
 
-    // Check if script was loaded by a previous mount
     if ((window as any).GraphViewer) {
       setScriptLoaded(true);
       renderStaticViewer();
@@ -94,15 +163,11 @@ export function DrawioOfficialViewer({
     };
 
     document.head.appendChild(script);
-
-    // Don't remove the script on cleanup — it should persist across mode toggles
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [xml, mode, scriptLoaded]);
 
   const renderStaticViewer = useCallback(() => {
     if (!containerRef.current || !xml) return;
 
-    // Clear previous render
     containerRef.current.innerHTML = '';
 
     const mxDiv = document.createElement('div');
@@ -128,14 +193,13 @@ export function DrawioOfficialViewer({
     }
   }, [xml]);
 
-  // ── 3. Embed iFrame postMessage handshake ─────────────────────────────
+  // ── 3. Embed iFrame postMessage handshake with automatic fallback ──────
   useEffect(() => {
     if (!xml || mode !== 'iframe') return;
 
     initHandledRef.current = false;
 
     const handleMessage = (event: MessageEvent) => {
-      // Only process messages from diagrams.net
       if (!event.origin.includes('diagrams.net') && !event.origin.includes('draw.io')) {
         return;
       }
@@ -147,7 +211,6 @@ export function DrawioOfficialViewer({
         return;
       }
 
-      // Draw.io embed sends { event: 'init' } when ready to receive XML
       if (msg?.event === 'init' && !initHandledRef.current) {
         initHandledRef.current = true;
         const iframe = iframeRef.current;
@@ -166,8 +229,18 @@ export function DrawioOfficialViewer({
 
     window.addEventListener('message', handleMessage);
 
+    // Timeout safety: If browser privacy protections block cross-origin postMessage,
+    // switch to static viewer mode automatically after 4.5 seconds
+    const timeoutTimer = setTimeout(() => {
+      if (!initHandledRef.current && mode === 'iframe') {
+        console.info('[DrawioViewer] postMessage handshake delayed or blocked by browser; switching to static viewer.');
+        setMode('static');
+      }
+    }, 4500);
+
     return () => {
       window.removeEventListener('message', handleMessage);
+      clearTimeout(timeoutTimer);
     };
   }, [xml, mode]);
 

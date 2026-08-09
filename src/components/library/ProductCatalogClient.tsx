@@ -192,7 +192,8 @@ export function ProductCatalogClient() {
 
   useEffect(() => {
     loadData();
-
+    fetchFreshData(true);
+    
     // 1. Listen for local catalog mutation events from Add/Edit/Delete modals
     const handleLocalUpdate = () => loadData(true);
     window.addEventListener('product_catalog_updated', handleLocalUpdate);
@@ -726,7 +727,7 @@ export function ProductCatalogClient() {
                       <div className="h-3 bg-[#c5c6ce] rounded w-24" />
                       <div className="h-4 bg-[#e2e2e6] rounded w-14" />
                     </div>
-                    <div className="aspect-16/9 bg-[#0b1329]/15 flex items-center justify-center">
+                    <div className="aspect-16/9 bg-[#f7f9fc] flex items-center justify-center border-b border-[#e6e8eb]">
                       <span className="material-symbols-outlined text-[32px] text-[#75777e]/40">photo_library</span>
                     </div>
                     <div className="p-4 flex flex-col gap-3 flex-1">
@@ -801,7 +802,7 @@ export function ProductCatalogClient() {
                         {/* Image Showcase with Overlay Badge */}
                         <div
                           onClick={() => setSelectedProductForModal(p)}
-                          className="relative aspect-16/9 w-full bg-[#0b1329] overflow-hidden cursor-pointer flex items-center justify-center group-hover:opacity-95 transition-opacity p-1.5"
+                          className="relative aspect-16/9 w-full bg-white border-b border-[#e2e8f0] overflow-hidden cursor-pointer flex items-center justify-center group-hover:opacity-95 transition-opacity p-3"
                         >
                           <img
                             src={p.hero_image_url || '/products/logitech-rally-bar.svg'}
